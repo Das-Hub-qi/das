@@ -50,6 +50,14 @@ def kurulum_listesi(ayar: Ayarlar) -> list[tuple[str, str, str, str]]:
     link = sum(len(n.get("ortaklik_linkleri") or {}) for n in ayar.nisler)
     s.append((TAMAM if link else UYARI, "Ortaklık (affiliate) linkleri", f"{link} link",
               "—" if link else "`config/varliklar.yaml` > ortaklik_linkleri (ek gelir)"))
+    import os
+    gorunurluk = os.environ.get("REPO_OZEL", "").lower()
+    if gorunurluk == "false":
+        s.append((UYARI, "Depo görünürlüğü", "Herkese açık: GitHub dakikası sınırsız; teklif e-postaları depoya "
+                  "maskeli yazılır (tam hali Cloudflare KV'de)",
+                  "İstersen Settings > General > Change visibility ile özel yap (dakika sınırı 2.000 olur)"))
+    elif gorunurluk == "true":
+        s.append((TAMAM, "Depo görünürlüğü", "Özel", "—"))
     muzik = list((CONFIG / "muzik").glob("*.mp3"))
     s.append((TAMAM if muzik else UYARI, "Arka plan müziği", f"{len(muzik)} parça",
               "—" if muzik else "YouTube Ses Kitaplığı'ndan mp3 → `config/muzik/`"))

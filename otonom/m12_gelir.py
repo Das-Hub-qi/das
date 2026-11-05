@@ -53,6 +53,25 @@ def kv_sil(anahtar: str) -> None:
     requests.delete(_kv_url(f"/values/{quote(anahtar, safe='')}"), headers=_baslik(), timeout=20)
 
 
+def kv_yaz(anahtar: str, deger: str) -> None:
+    requests.put(_kv_url(f"/values/{quote(anahtar, safe='')}"), headers=_baslik(), data=deger.encode(), timeout=20)
+
+
+def herkese_acik_depo() -> bool:
+    """Herkese açık depoda kişisel veri (e-posta, isim, mesaj) git'e açık yazılmaz."""
+    import os
+    return os.environ.get("REPO_OZEL", "").lower() == "false"
+
+
+def maskele(eposta: str) -> str:
+    """ali.veli@gmail.com -> a***@g***.com"""
+    if "@" not in eposta:
+        return "***"
+    kul, _, alan = eposta.partition("@")
+    ad, _, uzanti = alan.rpartition(".")
+    return f"{kul[:1]}***@{ad[:1]}***.{uzanti}" if ad else f"{kul[:1]}***@***"
+
+
 def _eposta_gonder(alici: str, konu: str, govde: str) -> bool:
     sunucu, kullanici, sifre = gizli("SMTP_SUNUCU"), gizli("SMTP_KULLANICI"), gizli("SMTP_SIFRE")
     if not (sunucu and kullanici and sifre):
@@ -77,21 +96,28 @@ def teklifleri_isle(ayar: Ayarlar) -> list[dict]:
             kv_sil(anahtar)
             continue
         t["anahtar"] = anahtar
-        yeni.append(t)
+        acik = herkese_acik_depo()
+        kayit = dict(t)
+        if acik:  # depoya maskeli yaz; tam hali özel Cloudflare KV'de 'islendi:' anahtarıyla kalır
+            kayit.update({"eposta": maskele(t["eposta"]), "ad": (t.get("ad") or "")[:1] + "***" if t.get("ad") else "",
+                          "mesaj": "(gizli: Cloudflare > KV > TEKLIFLER)" if t.get("mesaj") else ""})
+        yeni.append(kayit)
         sablon_yolu = VERI / "alan_adlari" / t["alan_adi"].removeprefix("www.") / "teklif_yanit_sablonu.txt"
         if sablon_yolu.exists():
             yanit = (sablon_yolu.read_text(encoding="utf-8").replace("{ad}", t.get("ad") or "Merhaba")
                      .replace("{teklif}", f"{t['teklif']:,} TL".replace(",", ".")).replace("{alan_adi}", t["alan_adi"]))
             (VERI / "teklif_taslaklari").mkdir(exist_ok=True)
             (VERI / "teklif_taslaklari" / f"{anahtar.replace(':', '_')}.txt").write_text(
-                f"Kime: {t['eposta']}\nKonu: {t['alan_adi']} teklifiniz hakkında\n\n{yanit}", encoding="utf-8")
+                f"Kime: {kayit['eposta']}\nKonu: {t['alan_adi']} teklifiniz hakkında\n\n{yanit}", encoding="utf-8")
             if ayar["teklifler"]["otomatik_yanit"]:
                 try:
                     if _eposta_gonder(t["eposta"], f"{t['alan_adi']} teklifiniz hakkında", yanit):
                         log.info("Teklife otomatik yanıt gönderildi: %s", t["alan_adi"])
                 except (smtplib.SMTPException, OSError) as e:
                     log.warning("E-posta gönderilemedi: %s", e)
-        kv_sil(anahtar)  # KV'yi temiz tut; kayıt artık git'te (özel depo)
+        if acik:
+            kv_yaz("islendi:" + anahtar.removeprefix("teklif:"), json.dumps(t, ensure_ascii=False))
+        kv_sil(anahtar)  # bir daha işlenmesin
     if yeni:
         csv_ekle(VERI / "teklifler.csv", yeni, TEKLIF_ALANLARI)
         ozet_yaz(f"## 💰 {len(yeni)} yeni alan adı teklifi\n" + "\n".join(

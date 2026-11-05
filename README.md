@@ -241,4 +241,8 @@ Gerçek çalıştırma için `.env.example` dosyasını `.env` adıyla kopyalay�
   sesinle yorum veya deneyim eklemen çok faydalıdır.
 - **Alan adı satışı:** Çoğu alan adı uzun süre satılmayabilir; fiyat uydurulmaz, "teklife açık" satılır.
 - **Sağlık nişi:** Teşhis/tedavi vaadi yasaktır; senaryo talimatları buna göre ayarlıdır.
-- **Gizlilik (KVKK):** Teklif e-postaları özel deponda (`veri/teklifler.csv`) saklanır. Depoyu herkese açık yapma.
+- **Gizlilik (KVKK):** Depo **herkese açıksa** (şu an öyle; GitHub dakikası bu sayede sınırsız) teklif
+  e-postaları, isimler ve mesajlar depoya **maskeli** yazılır (`a***@g***.com`); tam hali yalnızca özel
+  Cloudflare deponda (Cloudflare > KV > TEKLIFLER) kalır. Raporlar ve metrikler yine herkese açıktır; bunu
+  istemezsen deponu **Settings > General > Change visibility** ile özel yap (aylık 2.000 dakika sınırına
+  sistem kendiliğinden uyar).

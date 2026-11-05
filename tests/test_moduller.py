@@ -282,3 +282,28 @@ def test_elle_yuklenen_videolar_kayda_eklenir(monkeypatch, tmp_path):
     assert m11_analiz.elle_yuklenenleri_ekle(ayar) == 0          # ikinci kez eklenmez
     kayit = {s["youtube_id"]: s for s in csv_oku(VERI / "yayinlananlar.csv")}
     assert kayit["AbCdEfGhIjK"]["tur"] == "uzun" and kayit["XyZ12345678"]["tur"] == "shorts"
+
+
+def test_herkese_acik_depoda_kisisel_veri_maskelenir(monkeypatch):
+    import json as _json
+
+    from otonom import m12_gelir
+    from otonom.ayarlar import VERI, csv_oku, yukle
+
+    assert m12_gelir.maskele("ali.veli@gmail.com") == "a***@g***.com"
+    kv = {"teklif:1:x": _json.dumps({"alan_adi": "trustneurohub.com.tr", "ad": "Ali Veli", "eposta": "ali@ornek.com",
+                                     "teklif": 25000, "tur": "satis", "mesaj": "Merhaba", "ulke": "TR",
+                                     "tarih": "2026-11-05T10:00:00Z"})}
+    monkeypatch.setattr(m12_gelir, "_kv_url", lambda yol="": "x")
+    monkeypatch.setattr(m12_gelir, "kv_anahtarlar", lambda onek: [k for k in kv if k.startswith(onek)])
+    monkeypatch.setattr(m12_gelir, "kv_oku", lambda a: kv[a])
+    monkeypatch.setattr(m12_gelir, "kv_sil", lambda a: kv.pop(a))
+    monkeypatch.setattr(m12_gelir, "kv_yaz", lambda a, d: kv.__setitem__(a, d))
+    monkeypatch.setenv("REPO_OZEL", "false")
+    ayar = yukle()
+    yeni = m12_gelir.teklifleri_isle(ayar)
+    assert len(yeni) == 1
+    satir = csv_oku(VERI / "teklifler.csv")[-1]
+    assert satir["eposta"] == "a***@o***.com" and "Ali" not in satir["ad"] and "Merhaba" not in satir["mesaj"]
+    assert "ali@ornek.com" in kv["islendi:1:x"]          # tam hali yalnızca özel KV'de
+    assert "teklif:1:x" not in kv                         # tekrar işlenmez
