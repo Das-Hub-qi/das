@@ -34,13 +34,29 @@
 - `mikro_site.py`: yazı sayfalarına VideoObject JSON-LD + og:image. README: F (arama motorları), G (paylaşım),
   Büyüme araçları ve Güvenlik bölümleri. `.env.example`'a yeni anahtarlar. Testler: 29.
 
+## Tamamlananlar (5 Kasım 2026, 3. oturum)
+- **Tek tıkla yetki** (`otonom/yetki.py`, `.github/workflows/yetki.yml`, `cloudflare/functions/api/yetki.js`):
+  günlük anahtar denetimi → GitHub'da "🔑 Onay gerekiyor" konusu → sahip "onay" yazar → PKCE'li Google bağlantısı →
+  dönüş sayfası kodu KV'ye bırakır → iş anahtara çevirir, kanalı doğrular (youtube_kanali.json), GitHub Secrets'a
+  (GH_YONETICI_TOKEN) ya da KV kasasına (`kasa:` öneki; `ayarlar.gizli()` önce kasaya bakar) yazar, `buyume` ile kanalı kurar.
+  `google` onayı: Search Console anahtarı + Google API'lerini açar (service.management). Yeni kanalda konu kendiliğinden açılır.
+- **Montaj v2** (`m07_montaj.py`, `ses_tasarimi.py`, `gorsel.py`): ease-in-out kamera hareketleri, xfade geçişleri
+  (≤10 sahnelik gruplar, bölüm başında karartma), yakılmış altyazı, bölüm bandı, logo filigranı (`config/marka/logo.png`),
+  ilerleme çubuğu, abone rozeti, logolu kapanış; üretken fon müziği + whoosh + sidechain + -14 LUFS; tonlama (m05).
+  Hız: 1080p'de 8 dk video ≈ 6 dk (4 çekirdek).
+- **Telefon** (`araclar/telefon/otonom`, `kur.sh`): durum, video, yeni-kanal, onay (Google sayfasını açar), bildirim,
+  zamanla, anahtar-aktar (Hibrit AI `~/hibrit/anahtarlar.sh` → GitHub Secrets, gh ile).
+- **Yapay zekâ zinciri**: Claude → Cloudflare → NVIDIA → OpenRouter → PC (Jormungand, JORMUNGAND_URL/TOKEN) → yerel.
+- Kullanıcının Hibrit AI dosyaları (Termux ajanı, PC daemonu, Jormungand) depoya EKLENMEDİ; yalnızca bağlantı noktaları yazıldı.
+  Kişisel belgeler (risk raporu) ve içinde token olan betikler asla depoya konmaz (depo herkese açık).
+- Testler: 35.
+
 ## Sıradaki işler
-1. **Kontrol Merkezi'ni güncelle** (Artifact, aynı URL https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf;
-   önce `action: read`): Büyüme bölümü + yeni gizliler (TELEGRAM_*, BLUESKY_*, GOOGLE_ARAMA_TOKEN).
-2. Gerçek kanalda ilk günlük çalıştırmadan sonra DURUM.md "Büyüme" bölümünü kontrol et; YouTube anahtarı eski ise
-   yorum/oynatma listesi izni için `python araclar/youtube_token_al.py <kanal>` ile yenilenmeli.
-3. İsteğe bağlı fikirler: Shorts'tan uzun videoya "ilgili video" bağlantısı (API'de yok, Studio'dan elle);
-   en iyi yorumlardan yeni video konusu çıkarma (oncelikli_konular.json'a).
+1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):
+   Tek tıkla yetki, telefon komutları, video v2, yeni gizliler (GH_YONETICI_TOKEN, NVIDIA_API_KEY, OPENROUTER_API_KEY).
+2. Gerçek kanalda ilk onaydan sonra `yetki.yml` günlüğünü ve DURUM.md "🔑 Yetkiler" bölümünü kontrol et.
+3. Fikirler: YouTube kanal filigranı (watermarks.set) ve kanal banner'ı logodan; Shorts'a ikinci ses (diyalog);
+   Kaggle GPU ile yapay zekâ görsel/klip üretimi (Hibrit'teki Kaggle altyapısı).
 
 ## Kullanım hakkını korumak için
 - Her yeni büyük işe **yeni oturumla** başla (bu dosyayı okut). Uzun oturum bağlamı her mesajda yeniden işlenir ve hakkı hızla tüketir.

@@ -179,7 +179,7 @@ def _katmanlar(ayar: Ayarlar, girdi_no: int, akan: str, ofset: float, toplam: fl
         girdiler += ["-loop", "1", "-framerate", str(fps), "-t", f"{sure_:.3f}", "-i", str(rozet)]
         suz += [f"[{girdi_no}:v]format=rgba,fade=t=out:st={a + 3.6:.2f}:d=0.4:alpha=1[ab]",
                 f"[{akan}][ab]overlay=x='if(lt(t-{a:.2f},0.35),-w+(w+{kenar})*max(0,t-{a:.2f})/0.35,{kenar})':"
-                f"y=H-h-{kenar * 3}:enable='between(t,{a:.2f},{a + 4:.2f})'[k3]"]
+                f"y=H*0.64:enable='between(t,{a:.2f},{a + 4:.2f})'[k3]"]
         akan = "k3"
     return girdiler, suz, akan
 
