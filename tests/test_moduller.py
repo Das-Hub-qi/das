@@ -546,3 +546,16 @@ def test_ek_saglayicilar_zincirde_ve_json_ayiklama(monkeypatch):
     assert "nvidia" in zincir and "openrouter" not in zincir and zincir[-1] == "yerel"
     assert llm._json_ayikla('```json\n{"a": 1}\n```') == {"a": 1}
     assert llm._json_ayikla('Tabii: {"b": [1, 2]} umarım işine yarar') == {"b": [1, 2]}
+
+
+def test_shorts_parcalama_altyazi_gruplari_ve_video_secimi():
+    from otonom import m06_materyal, m07_montaj
+    p = m07_montaj.shorts_parcala("Kısa bir giriş. " + " ".join(["kelime"] * 20) + ".", "brain")
+    assert len(p) >= 3 and all(len(x["metin"].split()) <= 14 for x in p)
+    kel = [(i * 0.3, i * 0.3 + 0.25, w) for i, w in enumerate("bir iki üç dört beş".split())]
+    assert m07_montaj._kisa_gruplar(kel, {1}) == [[0, 1], [2, 3, 4]]          # cümle sonu grubu böler
+    dosyalar = [{"file_type": "video/mp4", "width": 1080, "height": 1920, "link": "a"},
+                {"file_type": "video/mp4", "width": 2160, "height": 3840, "link": "b"},
+                {"file_type": "video/mp4", "width": 1920, "height": 1080, "link": "c"}]
+    assert m06_materyal._video_dosyasi(dosyalar, True)["link"] == "a"            # dikey ve gereksiz büyük değil
+    assert m06_materyal._video_dosyasi(dosyalar, False)["link"] == "c"

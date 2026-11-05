@@ -160,7 +160,13 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     bilgiler = []
     yedekler = [p for p in sorted((klasor / "gorseller").glob("*.jpg")) if "shorts" not in p.name]
     for k, p in enumerate(parcalar):
-        bilgi = m06_materyal.gorsel_bul(ayar, p["gorsel_arama"] or sh["gorsel_arama"],
+        sorgu = p["gorsel_arama"] or sh["gorsel_arama"]
+        video = m06_materyal.video_bul(ayar, sorgu, klasor / "gorseller" / f"shorts_{j}_{k:02d}.mp4", kullanilan,
+                                       en_kisa=sesler[k]["sure"])
+        if video:  # gerçek hareketli görüntü (Pexels) varsa önce o
+            bilgiler.append(video)
+            continue
+        bilgi = m06_materyal.gorsel_bul(ayar, sorgu,
                                         klasor / "gorseller" / f"shorts_{j}_{k:02d}.jpg", kullanilan,
                                         icerik["plan"]["nis"], dikey=True, yedek_yazi="")
         bilgiler.append(bilgi)
@@ -174,15 +180,15 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
                 bilgiler[k] = {**bilgi, "dosya": iyiler[k % len(iyiler)]["dosya"]}
             else:
                 gorsel.yazi_karti("", Path(bilgi["dosya"]), 1080, 1920, gorsel.renk(icerik["plan"]["nis"]))
-    video = m07_montaj.shorts_video(ayar, kod, j, sh, sesler, [Path(b["dosya"]) for b in bilgiler])
+    shorts = m07_montaj.shorts_video(ayar, kod, j, sh, sesler, [Path(b["dosya"]) for b in bilgiler])
     baslik = f"{sh['baslik'][:90]} #Shorts"
     aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], bilgiler, shorts=True)
     aciklama = buyume.aciklamaya_ekle(aciklama, buyume.ic_baglanti(ayar, icerik["plan"]["nis"], kod, "shorts"))
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "shorts")
-    vid = m09_youtube_yukleme.yukle(ayar, video, baslik, aciklama, icerik["etiketler"], yayin,
+    vid = m09_youtube_yukleme.yukle(ayar, shorts, baslik, aciklama, icerik["etiketler"], yayin,
                                     sentetik=any(b.get("sentetik") for b in bilgiler))
     if vid:
-        _kaydet_yayin(ayar, kod, icerik, "shorts", j, vid, baslik, yayin, m05_seslendirme.sure(video))
+        _kaydet_yayin(ayar, kod, icerik, "shorts", j, vid, baslik, yayin, m05_seslendirme.sure(shorts))
     return vid
 
 

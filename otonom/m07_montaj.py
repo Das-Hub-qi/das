@@ -454,8 +454,18 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
               f"eq=contrast=1.08:saturation=1.25:brightness=-0.03,vignette=PI/5"
               + (",fade=t=in:st=0:d=0.12:color=white" if flas else "") + ",format=yuv420p")
         klipler.append(klasor / f"c{c_no:02d}.mp4")
-        _ffmpeg("-i", str(c["resim"]), "-vf", vf, "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an",
-                *_kodlama(ayar, ara=True), str(klipler[-1]))
+        if Path(c["resim"]).suffix.lower() in (".mp4", ".mov", ".webm"):  # gerçek video: kendi hareketi var
+            baslangic = 0.0 if not c["yakin"] else c["sure"] * 0.9  # ikinci çekim videonun devamından
+            z_v = f"1.08+0.10*exp(-on/{max(1, int(fps * 0.12))})" + ("+0.06" if c["yakin"] else "")
+            vf_v = (f"fps={fps},scale={g}:{y}:force_original_aspect_ratio=increase,crop={g}:{y},"
+                    f"zoompan=z='{z_v}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={g}x{y}:fps={fps},"
+                    f"eq=contrast=1.06:saturation=1.18,vignette=PI/5"
+                    + (",fade=t=in:st=0:d=0.12:color=white" if flas else "") + ",format=yuv420p")
+            _ffmpeg("-stream_loop", "-1", "-ss", f"{baslangic:.2f}", "-i", str(c["resim"]), "-vf", vf_v,
+                    "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an", *_kodlama(ayar, ara=True), str(klipler[-1]))
+        else:
+            _ffmpeg("-i", str(c["resim"]), "-vf", vf, "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an",
+                    *_kodlama(ayar, ara=True), str(klipler[-1]))
         if c_no:
             kesmeler.append(an)
         an += c["sure"]

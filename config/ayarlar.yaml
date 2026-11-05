@@ -73,6 +73,7 @@ video:
   logo: "config/marka/logo.png"   # köşe filigranı + kapanışta logo (kanal ayarında "logo:" ile değişir)
   ilerleme_cubugu: true      # altta ince ilerleme çubuğu (izleyici sonuna kadar kalır)
   abone_rozeti: true         # videonun ~%30'unda kayan "ABONE OL" rozeti
+  stok_video: true           # Shorts'ta PEXELS_API_KEY varsa her cümlede gerçek stok VİDEO (yoksa fotoğraf)
 
 # --- Ücretsiz sınırlar (sistem bunlara göre kendini ayarlar) ---------------
 butce:

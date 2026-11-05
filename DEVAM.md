@@ -49,7 +49,12 @@
 - **Yapay zekâ zinciri**: Claude → Cloudflare → NVIDIA → OpenRouter → PC (Jormungand, JORMUNGAND_URL/TOKEN) → yerel.
 - Kullanıcının Hibrit AI dosyaları (Termux ajanı, PC daemonu, Jormungand) depoya EKLENMEDİ; yalnızca bağlantı noktaları yazıldı.
   Kişisel belgeler (risk raporu) ve içinde token olan betikler asla depoya konmaz (depo herkese açık).
-- Testler: 35.
+- **Shorts v3** (kullanıcı "videolar zayıf" dedi): kısa parçalı senaryo (m04 şeması `kanca_yazi`, `parcalar`),
+  parça başına seslendirme, her cümleye görsel/Pexels stok video (`m06.video_bul`), 1,5-3 sn kesme, BÜYÜK HARF
+  zıplayan altyazı (Montserrat Black, indirilir), üst başlık kutusu, vuruşlu müzik (`ses_tasarimi.ritim_muzigi`).
+  Örnek: "Beynin gece temizliği" (23 sn) kullanıcıya gönderildi. Kendi puanım 7,5/10; 10 için Pexels anahtarı (gerçek video)
+  ve gerekirse daha doğal ses gerekli.
+- Testler: 36.
 
 ## Sıradaki işler
 1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):

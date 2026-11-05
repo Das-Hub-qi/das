@@ -205,3 +205,49 @@ def topla(ayar: Ayarlar, kod: str, icerik: dict) -> list[dict]:
         liste.append({"shorts": j, **bilgi})
     json_yaz(CIKTI / kod / "materyal_listesi.json", liste)
     return liste
+
+
+# ------------------------------------------------------------ stok VİDEO (Shorts için gerçek hareket)
+
+def _video_dosyasi(dosyalar: list[dict], dikey: bool) -> dict | None:
+    """En uygun mp4: dikeyse dikey, yüksekliği 1280-2000 arası (gereksiz büyük dosya indirilmesin)."""
+    uygun = [f for f in dosyalar if f.get("file_type") == "video/mp4" and f.get("width") and f.get("height")
+             and (f["height"] > f["width"]) == dikey]
+    if not uygun:
+        return None
+    hedef = 1920 if dikey else 1080
+    return min(uygun, key=lambda f: (abs((f["height"] if dikey else f["width"] * 9 / 16) - hedef), f["height"]))
+
+
+def video_bul(ayar: Ayarlar, sorgu: str, hedef: Path, kullanilan: set[str], dikey: bool = True,
+              en_kisa: float = 3.0) -> dict | None:
+    """Pexels'ten ücretsiz stok video (PEXELS_API_KEY varsa; atıf zorunlu değil). Yoksa None → görsel kullanılır."""
+    anahtar = gizli("PEXELS_API_KEY")
+    if ayar.deneme or not anahtar or not ayar["video"].get("stok_video", True):
+        return None
+    try:
+        r = requests.get("https://api.pexels.com/videos/search", headers={"Authorization": anahtar}, timeout=15,
+                         params={"query": sorgu, "per_page": 15, "orientation": "portrait" if dikey else "landscape",
+                                 "size": "medium"})
+        r.raise_for_status()
+        videolar = r.json().get("videos", [])
+    except (requests.RequestException, ValueError) as e:
+        log.warning("Pexels video hatası (%s): %s", sorgu, e)
+        return None
+    for v in videolar:
+        dosya = _video_dosyasi(v.get("video_files") or [], dikey)
+        if not dosya or dosya["link"] in kullanilan or float(v.get("duration") or 0) < en_kisa:
+            continue
+        try:
+            r = requests.get(dosya["link"], timeout=60, headers=BASLIK)
+            r.raise_for_status()
+            if len(r.content) > 60_000_000:
+                continue
+            hedef.parent.mkdir(parents=True, exist_ok=True)
+            hedef.write_bytes(r.content)
+        except requests.RequestException:
+            continue
+        kullanilan.add(dosya["link"])
+        return {"url": dosya["link"], "kaynak": "Pexels (video)", "yazar": (v.get("user") or {}).get("name", ""),
+                "sayfa": v.get("url", ""), "dosya": str(hedef), "sorgu": sorgu, "video": True}
+    return None

@@ -68,6 +68,7 @@ Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklif
 - **Shorts (izleyiciyi tutmak için baştan tasarlandı):**
   - Ekranda selam ya da giriş yok; ilk cümle en fazla 8 kelimelik şaşırtıcı bir iddia ya da sorudur.
   - Toplam süre 25-35 saniyedir. Her cümleye ayrı görsel düşer ve 1,5-3 saniyede bir kesme yapılır.
+    `PEXELS_API_KEY` varsa her cümlede **gerçek stok video** oynar (ücretsizdir, atıf gerekmez); yoksa fotoğraf kullanılır.
   - Kesmelerde vuruşlu yakınlaşma, ara sıra beyaz flaş ve whoosh sesi vardır.
   - Altyazı iri, kalın ve BÜYÜK HARF'tir; kelime kelime renklenir ve zıplar. Telefonda arayüzün altında kalmasın diye ekranın ortasındadır.
   - Üstte sürekli duran, renkli bir başlık kutusu vardır.

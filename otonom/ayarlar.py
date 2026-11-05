@@ -141,7 +141,7 @@ VARSAYILAN: dict[str, Any] = {
             "ruh_hali": "merakli", "gecis_sesi": True, "efekt_seviyesi_db": -16, "tonlama": True},
     "video": {"genislik": 1920, "yukseklik": 1080, "fps": 24, "ken_burns": True, "crf": 23,
               "intro_saniye": 0, "outro_saniye": 5, "gecis": True, "altyazi_yak": True,
-              "logo": "config/marka/logo.png", "ilerleme_cubugu": True, "abone_rozeti": True},
+              "logo": "config/marka/logo.png", "ilerleme_cubugu": True, "abone_rozeti": True, "stok_video": True},
     "butce": {"github_dakika_limiti": 2000},
     "laboratuvar": {"viral_esik": 10000, "min_veri_gunu": 7},
     "optimizasyon": {"yari_omur_gun": 45, "benzerlik_esigi": 0.6,
