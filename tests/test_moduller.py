@@ -381,3 +381,19 @@ def test_guvenlik_dis_kaynak_filtresi_ve_kanal_kodu():
     assert guvenli_konu("Lale Devri <script>") == "Lale Devri script"
     basliklar = guvenlik_basliklari(yukle(deneme=True))
     assert "Content-Security-Policy" in basliklar and "frame-ancestors 'none'" in basliklar
+
+
+def test_konuya_gore_hiyerarsik_karar():
+    """Her niş kendi kazananını öğrenir; verisi olmayan yeni niş kanal genelinden ödünç alır."""
+    import random
+    from datetime import date
+
+    from otonom import optimizasyon as o
+
+    bugun, t = date(2026, 11, 5), "2026-11-01"
+    ham = ([["soru", 0.9, t, f"a{i}", "noro"] for i in range(8)] + [["nasil", 0.2, t, f"b{i}", "noro"] for i in range(8)]
+           + [["nasil", 0.9, t, f"c{i}", "turizm"] for i in range(8)] + [["soru", 0.2, t, f"d{i}", "turizm"] for i in range(8)])
+    kollar, rng = ["soru", "nasil"], random.Random(5)
+    say = lambda nis: sum(o.thompson_sec(o.nis_posterior(ham, kollar, 45, bugun, nis), rng) == "soru" for _ in range(400))
+    assert say("noro") > 340 and say("turizm") < 60          # iki konu zıt kararlar verir
+    assert 120 < say("yeni_nis") < 280                         # veri yok: kanal geneli (dengeli) ile başlar

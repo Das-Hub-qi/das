@@ -15,10 +15,10 @@
   GitHub'da her kanal ayrı paralel iş (matrix) + genel iş. Yeni kanal: Run workflow → `yeni_kanal` + açıklama.
 - **Yapay zekâ zinciri:** Claude (anahtar varsa) → Cloudflare Workers AI → yerel Gemma 4 E2B (llama.cpp, ücretsiz).
 - **Ses:** Edge TTS → Piper (çevrimdışı). **Görsel:** Pexels → Pixabay → Openverse → yapay zekâ (Cloudflare/Pollinations) → kart.
-- **Öğrenme:** Thompson örneklemesi (niş, başlık stili, uzunluk, saat, kaynak), yaşa göre puan, A/B başlık, viral takip, Öğrenme Mühendisi.
+- **Öğrenme:** HİYERARŞİK (konuya göre) Thompson: her niş kendi başlık stili/uzunluk/saat/kaynak kazananını öğrenir, az verili niş kanal genelinden %30 ödünç alır (`optimizasyon.nis_posterior`). Yaşa göre puan, A/B başlık, viral takip, Öğrenme Mühendisi.
 - **Güvenlik:** SECURITY.md. **Arama motorları:** `otonom/arama_motoru.py` (IndexNow + Google Search Console).
 - **Panel:** `DURUM.md` (her çalıştırmada) ve Kontrol Merkezi: https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf
-- Testler: `python -m pytest -q` (24 test), deneme: `python -m otonom haftalik --deneme`.
+- Testler: `python -m pytest -q` (25 test), deneme: `python -m otonom haftalik --deneme`.
 
 ## Son gerçek deneme (5 Kasım 2026)
 - Anahtarsız, yalnızca yerel modelle beta: 8,4 dk video + 2 Shorts üretildi; senaryo 290 → 859 kelime genişletildi.

@@ -135,13 +135,25 @@ BASLIK_STILLERI = {
 }
 
 
-def deney_secimleri(deneyler: dict[str, list], istatistik: dict, rng: random.Random, yari_omur: float) -> dict:
-    """Her deney için Thompson ile bir kol seçer. istatistik: {deney: [(kol, başarı, yaş)]}"""
-    secim = {}
-    for ad, kollar in deneyler.items():
-        if kollar:
-            secim[ad] = thompson_sec(posterior(istatistik.get(ad, []), kollar, yari_omur), rng)
-    return secim
+def nis_posterior(ham: list, kollar: list, yari_omur: float, bugun: date, nis: str | None,
+                  oduncleme: float = 0.3) -> dict:
+    """HİYERARŞİK (konuya göre) Thompson: nişin kendi gözlemleri + kanal genelinden ödünç alınan bilgi.
+    Az verili yeni niş kanalın genel eğilimiyle başlar; veri biriktikçe kendi doğrusuna yönelir.
+    Böylece bir konuda iyi giden seçenek başka bir konuya yanlışlıkla dayatılmaz."""
+    genel = posterior(yasli(ham, bugun), kollar, yari_omur)
+    if not nis:
+        return genel
+    ozel = posterior(yasli([g for g in ham if len(g) > 4 and g[4] == nis], bugun), kollar, yari_omur)
+    return {k: (1 + oduncleme * (genel[k][0] - 1) + (ozel[k][0] - 1),
+                1 + oduncleme * (genel[k][1] - 1) + (ozel[k][1] - 1),
+                ozel[k][2] + oduncleme * genel[k][2]) for k in genel}
+
+
+def deney_secimleri(deneyler: dict[str, list], ham_gozlem: dict, rng: random.Random, yari_omur: float,
+                    bugun: date, nis: str | None = None) -> dict:
+    """Her deney için (konuya göre) Thompson ile bir kol seçer. ham_gozlem: optimizasyon.json gözlemleri."""
+    return {ad: thompson_sec(nis_posterior(ham_gozlem.get(ad, []), kollar, yari_omur, bugun, nis), rng)
+            for ad, kollar in deneyler.items() if kollar}
 
 
 def gozlemleri_topla(olgun_videolar: list[dict], icerik_oku) -> dict[str, list]:
@@ -151,9 +163,9 @@ def gozlemleri_topla(olgun_videolar: list[dict], icerik_oku) -> dict[str, list]:
         if v.get("tur") != "uzun" or "skor" not in v:
             continue
         tarih, basari, vid = v["tarih"][:10], round(v["skor"] / 100, 4), v.get("youtube_id", "")
-        sonuc["nis"].append([v["nis"], basari, tarih, vid])
+        sonuc["nis"].append([v["nis"], basari, tarih, vid, v["nis"]])
         for ad, kol in ((icerik_oku(v["kod"]) or {}).get("plan", {}).get("deney") or {}).items():
-            sonuc[ad].append([str(kol), basari, tarih, vid])
+            sonuc[ad].append([str(kol), basari, tarih, vid, v["nis"]])   # 5. alan: konu (niş) -> konuya göre öğrenme
     return dict(sonuc)
 
 

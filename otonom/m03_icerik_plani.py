@@ -85,13 +85,11 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
 
     # Her slotun nişi ve deney kolları (Thompson)
     deneyler = _deneyler(ayar)
-    istat = {ad: optimizasyon.yasli(ogren.get(ad, []), bugun) for ad in deneyler}
     slotlar = [{"nis": o["nis"], "oncelikli": o["konu"]} for o in oncelik] + [{"nis": k} for k in dagilim]
-    for sl in slotlar:
-        sl["deney"] = optimizasyon.deney_secimleri(deneyler, istat, rng, yo)
+    for sl in slotlar:  # konuya göre (niş bazlı, hiyerarşik) deney seçimi
+        sl["deney"] = optimizasyon.deney_secimleri(deneyler, ogren, rng, yo, bugun, sl["nis"])
 
     kaynak_turleri = sorted({a.get("kaynak", "youtube_oneri") for liste in nis_analizi.values() for a in liste})
-    kaynak_post = optimizasyon.posterior(optimizasyon.yasli(ogren.get("kaynak", []), bugun), kaynak_turleri, yo)
     yayinlanan = [x["baslik"] for x in csv_oku(VERI / "yayinlananlar.csv")][-200:]
     gecmis_plan = [v["konu"] for d in sorted((VERI / "plan").glob("*.json"))[-8:] for v in json_oku(d, [])]
     esik = float(ayar["optimizasyon"]["benzerlik_esigi"])
@@ -104,6 +102,7 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
             continue
         temiz = optimizasyon.cesitlendir(nis_analizi[sl["nis"]], yayinlanan + gecmis_plan, esik)
         # Kaynak öğrenimi: iyi video çıkaran kaynağın (ör. gündem, RSS) adayları öne alınır (Thompson)
+        kaynak_post = optimizasyon.nis_posterior(ogren.get("kaynak", []), kaynak_turleri, yo, bugun, sl["nis"])
         ornek = {k: rng.betavariate(*kaynak_post[k][:2]) for k in kaynak_post}
         temiz.sort(key=lambda a: -a["firsat"] * (0.5 + ornek.get(a.get("kaynak", ""), 0.5)))
         etiket = {"google_trendler": " [gündem]", "rss": " [haber]", "wikipedia_bugun": " [tarihte bugün]"}
