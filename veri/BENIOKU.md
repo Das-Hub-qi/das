@@ -2,6 +2,11 @@
 
 GitHub Actions her çalıştırmada bu klasörü günceller ve depoya kaydeder. Elle düzenlemen gerekmez.
 
+Her kanalın kendi klasörü vardır: `veri/kanallar/<kanal>/`. Aşağıdaki "Üretim", "Laboratuvar" ve
+"Öğrenme Mühendisi" dosyaları kanal klasörünün içindedir; "Gelir" dosyaları ve DURUM.md tüm kanallar için
+ortaktır. Kota, uyarı, maliyet ve süre kayıtları kanal işlerinde kanal klasörüne, genel işte `veri/`'ye yazılır
+(paralel çalışan kanallar birbirinin dosyasına dokunmaz).
+
 | Dosya / klasör | İçerik |
 |---|---|
 | **Üretim** | |

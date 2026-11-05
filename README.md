@@ -1,7 +1,9 @@
 # Otonom Gelir ve İçerik Sistemi
 
-YouTube içerik üretimini ve alan adlarından (trustneurohub.com.tr, okyanusbilisimtr.com, turizm alan adları)
-gelir elde etmeyi **ücretsiz bulut katmanlarında**, kendi kendine öğrenerek yürüten otomasyon sistemi.
+**İstediğin kadar YouTube kanalını** (her biri farklı konu, kaynak, dil ve biçimde) ve alan adlarından
+(trustneurohub.com.tr, okyanusbilisimtr.com, turizm alan adları) gelir elde etmeyi **ücretsiz bulut
+katmanlarında**, kendi kendine öğrenerek yürüten otomasyon sistemi. Video ve Shorts üretimi, seslendirme,
+görsel, küçük resim, yükleme ve yeni kanal kurulumu dahil tüm yapay zekâ işleri otomatiktir.
 Hiçbir ücretli hesap gerektirmez.
 
 > 🧭 **Tüm sistem tek sayfada → [Kontrol Merkezi](https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf)**
@@ -23,6 +25,9 @@ Hiçbir anahtar eklemeden başlayabilirsin; sistem eksikleri ücretsiz yedeklerl
    En büyük kalite artışı için önce ücretsiz **Pexels** anahtarını ekle (aşağıda adım B).
 3. **Başlat:** aynı yerden `haftalik` çalıştır. Sonrası otomatik: her pazartesi plan ve üretim,
    her gün yükleme ve teklif kontrolü. Bir adım hata verirse GitHub sana e-posta gönderir.
+4. **Yeni kanal aç (istediğin kadar):** **Run workflow** → komut `yeni_kanal` → **aciklama** kutusuna kanalı
+   bir cümleyle yaz, ör. *"Osmanlı tarihinden az bilinen hikâyeler anlatan, sadece Shorts kanalı"*.
+   Sistem kanalı tasarlar ve sonraki çalıştırmadan itibaren kendi paralel işinde üretime başlar.
 
 ---
 
@@ -46,10 +51,12 @@ Tek gider alan adlarının yıllık yenileme ücreti. Sistem dakika bütçesini 
 ## ⚙️ Nasıl çalışır?
 
 ```
-Pazartesi 09:17 ─ Laboratuvar ölçer → Öğrenme Mühendisi sistemi ayarlar → niş ve trend analizi →
-                  haftalık plan (Thompson) → senaryolar → [yerel modelde: video üretimi] → alan adı metinleri → siteler
-Pazartesi 13:37 ─ (Claude kullanılıyorsa) toplu senaryoları alır ve videoları üretir
-Her gün   07:07 ─ Kalan yüklemeler, viral kontrol, teklifler, link tıklamaları, site güncellemesi
+Pazartesi 09:17 ─ HER KANAL KENDİ İŞİNDE, PARALEL:
+                    laboratuvar → Öğrenme Mühendisi → konu kaynakları → plan (Thompson) → senaryo →
+                    seslendirme → görsel → video + Shorts → küçük resim → YouTube
+                  ARDINDAN GENEL İŞ: alan adı metinleri → siteler (tüm kanalların yazıları) → rapor → DURUM.md
+Pazartesi 13:37 ─ (Claude toplu işi kullanılıyorsa) senaryoları alır ve üretir
+Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklifler, link tıklamaları, siteler
 ```
 
 **Tek senaryodan 4 içerik:** 1 uzun video (5-9 dk, bölümlü, altyazılı) + 2 Shorts (büyük altyazılı)
@@ -60,6 +67,30 @@ yayına girer (`gizlilik: "zamanla"` iken; değilse Studio'dan tek tıkla).
 Sitede "satılık/kiralık" teklif formu vardır; gelen teklife yanıt taslağı otomatik hazırlanır.
 Ortaklık (affiliate) linkleri kendi alan adından kısa link olur (`/git/kurs`), tıklamalar sayılır,
 link değişince eski videolar otomatik düzelir.
+
+## 📺 Kanallar: istediğin kadar, her biri farklı
+
+Her kanal `config/kanallar/<kod>.yaml` dosyasıdır. Kanal başına ayrı ayarlanabilenler:
+
+| Ayar | Seçenekler |
+|---|---|
+| **Konu** | Kanalın nişleri; her nişin hedef kitlesi ve arama tohumları |
+| **Konu kaynakları** | `youtube_oneri` (insanların aradıkları), `google_trendler` (Türkiye gündemi), `rss` (haber/blog akışları), `wikipedia_bugun` (tarihte bugün), `elle` (kendi listen) |
+| **Biçim** | `uzun_ve_shorts` · `sadece_shorts` · `sadece_uzun` |
+| **Dil ve ses** | `tr`, `en`, `de`, `es`, `fr`, `ar`; erkek/kadın Edge sesi (yedek: dile uygun Piper sesi) |
+| **Üslup** | Ör. "merak uyandıran hikâye anlatıcısı" — kanallar birbirine benzemez |
+| **Görsel sırası** | Stok fotoğraf önce, veya tarih/fantastik konular için yapay zekâ görseli önce |
+| **Video sayısı, uzunluk, yayın günleri** | `ayarlar:` altında kanalın genel ayarlardan farkları |
+| **Alan adı** | Nişin yazıları hangi sitede yayınlanacak (birden çok kanal aynı siteyi besleyebilir) |
+
+Yeni kanal açmanın iki yolu: **sihirbaz** (Run workflow → `yeni_kanal` → açıklama) veya `ana.yaml`'ı kopyalayıp
+düzenlemek. Kanalı durdurmak için dosyada `aktif: false`. Her kanalın öğrenme hafızası (`veri/kanallar/<kod>/`)
+ayrıdır: bir kanalda iyi giden başlık stili diğerini etkilemez.
+
+**YouTube bağlantısı kanal başına:** her kanal kendi anahtarıyla yükler (`YT_REFRESH_TOKEN_<KANAL>`,
+ör. `YT_REFRESH_TOKEN_TARIH`). Bilgisayarında `python araclar/youtube_token_al.py <kanal_kodu>` çalıştırıp çıkan
+anahtarı Secrets'a ekle; iş akışını değiştirmen gerekmez. Anahtarı olmayan kanalın videoları indirilebilir kalır,
+başka bir kanala asla yüklenmez. Günlük YouTube kotası kanallar arasında paylaştırılır.
 
 ## ✅ Haftalık 15 dakikalık kontrol
 
@@ -81,9 +112,14 @@ tablodaki adla ekle. Anahtarları asla dosyalara yazma.
 
 ### A. Yapay zekâ
 Hiçbir şey yapmana gerek yok: anahtar yoksa ücretsiz yerel model kullanılır (ilk çalıştırmada bir kez
-indirilir). Daha kaliteli metin için: https://console.anthropic.com → **Billing**'den 5 $ yükle →
-**API Keys > Create Key** → `ANTHROPIC_API_KEY`. Sistem anahtarı görünce Claude'a geçer; kredi biterse
-kendiliğinden yerel modele döner.
+indirilir). Sistem şu sırayla dener, biri kullanılamazsa (kredi, kota, ağ) sıradakine geçer:
+
+1. **Claude Haiku 5.5** (en kaliteli): https://console.anthropic.com → **Billing**'den 5 $ → **API Keys** → `ANTHROPIC_API_KEY`
+2. **Cloudflare Workers AI** (ücretsiz günlük kota, Llama 3.3 70B; logosuz yapay zekâ görseli de üretir):
+   Cloudflare token'ına (adım D) *Account – Workers AI – Read* ve *Edit* izinlerini eklemen yeterli.
+3. **Yerel Gemma 4 E2B** (her zaman var, tamamen ücretsiz).
+
+Görseller için ayrıca anahtarsız **Pollinations** yapay zekâ görseli son yedektir (köşesinde küçük logo olur).
 
 ### B. Görseller (önerilir)
 - https://www.pexels.com/api → `PEXELS_API_KEY`
@@ -91,7 +127,7 @@ kendiliğinden yerel modele döner.
 
 Anahtar yoksa anahtarsız Openverse'ten CC0 fotoğraf aranır, o da olmazsa renkli yazı kartı kullanılır.
 
-### C. YouTube
+### C. YouTube (bir kez uygulama + her kanal için bir anahtar)
 1. https://console.cloud.google.com → yeni proje → **APIs & Services > Library**:
    "YouTube Data API v3" ve "YouTube Analytics API"yi **Enable** et.
 2. **Credentials > Create credentials > API key** → `YOUTUBE_API_KEY` (istatistik ve rekabet analizi).
@@ -100,9 +136,11 @@ Anahtar yoksa anahtarsız Openverse'ten CC0 fotoğraf aranır, o da olmazsa renk
    adıyla bu klasöre koy ve çalıştır:
    ```
    pip install google-auth-oauthlib
-   python araclar/youtube_token_al.py
+   python araclar/youtube_token_al.py ana
    ```
-   Çıkan `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` değerlerini Secrets'a ekle.
+   Çıkan `YT_CLIENT_ID`, `YT_CLIENT_SECRET` (bir kez) ve `YT_REFRESH_TOKEN_ANA` değerlerini Secrets'a ekle.
+   Diğer kanallar için: `python araclar/youtube_token_al.py <kanal_kodu>` → `YT_REFRESH_TOKEN_<KANAL>`.
+   Google izin ekranında **doğru kanalı seçtiğinden** emin ol.
 5. Kanalını telefonla doğrula (youtube.com/verify): özel küçük resim için gerekli.
 6. ⚠️ Google, denetimden geçmemiş API projelerinin yüklediği videoları **gizli** tutar. Bu yüzden sistem
    "gizli" yükler, sen Studio'dan yayınlarsın. Tam otomatik yayın için ücretsiz **YouTube API Audit**
@@ -119,9 +157,10 @@ Anahtar yoksa anahtarsız Openverse'ten CC0 fotoğraf aranır, o da olmazsa renk
    `teklif@alanadin` → Gmail; **Web Analytics** token'ını `config/ayarlar.yaml` > `cloudflare`'e yaz.
 
 ### E. Kendi bilgilerin
-`config/varliklar.yaml`'ı GitHub'da açıp kalem simgesiyle düzenle: `kanal_id` (Studio > Ayarlar > Kanal >
-Gelişmiş, "UC..." ile başlar), turizm alan adların (örnek satırlardaki `#` işaretini kaldır), ortaklık
-linklerin (`kisa-ad: "https://..."`). Ayar dosyasında yazım hatası yaparsan sistem satır numarasıyla
+`config/kanallar/<kanal>.yaml` (ör. `ana.yaml`): `kanal_id` (Studio > Ayarlar > Kanal > Gelişmiş, "UC..." ile
+başlar), nişlerin `alan_adi` ve `ortaklik_linkleri` (`kisa-ad: "https://..."`).
+`config/varliklar.yaml`: alan adların (turizm alan adları için örnek satırlardaki `#` işaretini kaldır).
+Dosyayı GitHub'da açıp kalem simgesiyle düzenleyebilirsin. Ayar dosyasında yazım hatası yaparsan sistem satır numarasıyla
 Türkçe uyarı verir; eksik bıraktığın ayarları varsayılanla tamamlar.
 
 ---
@@ -161,7 +200,9 @@ korumak için `config/ayarlar.yaml > muhendis > kilitli`'ye ekle; yalnızca öne
 
 | Sınır / sorun | Sistem ne yapar? |
 |---|---|
-| Claude kredisi biter, kota veya ağ hatası | Ücretsiz yerel modelle devam eder |
+| Claude kredisi biter, kota veya ağ hatası | Cloudflare Workers AI'a, o da olmazsa yerel modele geçer |
+| Stok fotoğraf bulunamaz | Yapay zekâ görseli üretir (Cloudflare → Pollinations); videoda sentetik içerik beyanı otomatik işaretlenir |
+| Bir kanalın işi hata verir | Diğer kanallar etkilenmez (her kanal ayrı paralel iş) |
 | Toplu yapay zekâ işi 26 saatte bitmez | Senaryoları anlık üretir |
 | Yerel model metni kısa / yarım bırakır | Sahneleri tek tek genişletir; yarım kalırsa kısaltıp tekrar dener |
 | Edge seslendirme engellenir | İnternetsiz **Piper** Türkçe sesine geçer |
@@ -208,10 +249,12 @@ göz at. Site adresi ve emoji gibi seslendirmeyi bozan şeyler kodla temizlenir.
 | Dosya | Görev |
 |---|---|
 | `config/ayarlar.yaml` | Genel ayarlar (yapay zekâ, video sayısı, ses, yayın, deneyler, mühendis) |
-| `config/varliklar.yaml` | Alan adları, nişler, ortaklık linkleri, kanal |
+| `config/kanallar/<kod>.yaml` | Her kanal: nişler, konu kaynakları, dil, ses, biçim, üslup, ortaklık linkleri |
+| `config/varliklar.yaml` | Alan adları ve iletişim |
 | `config/elle_yuklenenler.yaml` | Elle yüklediğin videoların linkleri |
 | `otonom/m01_envanter.py` … `m12_gelir.py` | Master prompttaki 12 modül |
 | `otonom/optimizasyon.py`, `muhendis.py` | Öğrenme motoru ve Öğrenme Mühendisi |
+| `otonom/kanal_sihirbazi.py` | Tek cümleden yeni kanal |
 | `otonom/yerel_llm.py`, `butce.py`, `durum_paneli.py` | Yerel model, sınır bütçesi, DURUM.md |
 | `otonom/orkestrator.py`, `mikro_site.py`, `cloudflare_kur.py` | Döngüler, siteler, Cloudflare kurulumu |
 | `cloudflare/functions/` | Teklif formu ve kısa link fonksiyonları |
@@ -219,7 +262,8 @@ göz at. Site adresi ve emoji gibi seslendirmeyi bozan şeyler kodla temizlenir.
 | `MASTER_PROMPT.md` | Sistemin ana talimatı |
 
 Komutlar (Actions'tan veya bilgisayarında `python -m otonom <komut>`):
-`beta, haftalik, gunluk, muhendis, durum, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+`beta, haftalik, gunluk, yeni_kanal, kanallar, muhendis, durum, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+(kanal komutlarına `--kanal <kod>` eklenirse yalnızca o kanal çalışır)
 
 Bilgisayarında denemek için:
 ```

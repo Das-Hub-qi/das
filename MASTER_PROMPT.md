@@ -65,6 +65,14 @@ M13 ÖĞRENME MÜHENDİSİ (haftalık, M11'den sonra, M2'den önce): sistemi ken
    - En iyi/en zayıf 3 videodan ≤5 ders çıkar, senaryo talimatına ekle (politika kuralları önceliklidir).
    - Kullanıcının config dosyalarına dokunma: veri/ogrenilen_ayarlar.yaml katmanı + gerekçeli günlük.
 
+M14 ÇOK KANAL: Kanal sayısı sınırsızdır; her kanal config/kanallar/<kod>.yaml ile tanımlanır (nişler, konu
+   kaynakları [youtube_oneri, google_trendler, rss, wikipedia_bugun, elle], dil, ses, biçim [uzun_ve_shorts,
+   sadece_shorts, sadece_uzun], üslup, görsel sırası). Her kanalın verisi ve öğrenme hafızası ayrıdır.
+   Kanallar GitHub Actions'ta paralel işlerde çalışır; alan adları/siteler/teklifler genel işte birleşir.
+   Yeni kanal: tek cümlelik tariften yapay zekâ kanal dosyasını tasarlar (RSS adresleri doğrulanır).
+   YouTube anahtarı kanal başınadır; bir kanalın videosu başka kanala asla yüklenmez.
+   Yapay zekâ zinciri: Claude → Cloudflare Workers AI → yerel model; görsel: stok → yapay zekâ → kart.
+
 ## 6. DÖNGÜLER
 - Haftalık (Pzt 09:00): M1 → M11 → M13 → M2 → M3 → M4 → M10 → siteler → aylık rapor.
 - Yerel modelde üretim (M5-M9) haftalık çalıştırmanın içinde yapılır. Claude toplu işindeyse:
