@@ -81,6 +81,8 @@ def yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: lis
     """Video kimliğini döner. Kota/kimlik yoksa None (sonraki çalıştırmada tekrar denenir)."""
     if ayar.deneme:
         return "DENEME-" + video.stem
+    if not ayar.yukleme:
+        return None
     if not kimlik_var():
         log.warning("YouTube kimlik bilgileri yok; video Actions 'artifacts' bölümünden elle yüklenebilir.")
         return None

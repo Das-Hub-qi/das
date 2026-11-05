@@ -56,6 +56,7 @@ class Ayarlar:
     genel: dict[str, Any]
     varliklar: dict[str, Any]
     deneme: bool = False      # True = dış servis çağrısı yok, sahte veriyle uçtan uca test
+    yukleme: bool = True      # False = videolar üretilir ama YouTube'a yüklenmez (beta)
     simdi: datetime = field(default_factory=lambda: datetime.now(ZoneInfo("Europe/Istanbul")))
 
     def __getitem__(self, anahtar: str) -> Any:

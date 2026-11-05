@@ -17,7 +17,7 @@ kendi kendini iyileştiren otomasyon sistemi.
 | Cloudflare Pages + Workers + KV | Siteler, teklif formu, link takibi | **0 ₺** (sınırsız trafik, ücretsiz SSL) |
 | Cloudflare Email Routing + Web Analytics | teklif@alanadınız → Gmail, ziyaretçi sayımı | **0 ₺** |
 | Microsoft Edge TTS | Türkçe seslendirme | **0 ₺** |
-| Pexels + Pixabay | Telifsiz fotoğraflar | **0 ₺** |
+| Pexels + Pixabay + Openverse | Telifsiz fotoğraflar (Openverse anahtar bile istemez) | **0 ₺** |
 | YouTube Data API | Yükleme + istatistik | **0 ₺** (günlük ücretsiz kota) |
 | Claude Haiku 5.5 (yapay zekâ) | Senaryo, plan, satış metinleri | **≈ 0,01-0,05 $/ay** (toplu işlemle %50 indirimli) |
 
@@ -55,7 +55,8 @@ ve alan adlarınızın yıllık yenileme ücreti (zaten ödüyorsunuz).
 - https://www.pexels.com/api → `PEXELS_API_KEY`
 - https://pixabay.com/api/docs → `PIXABAY_API_KEY`
 
-(Yoksa sistem renkli yazı kartları kullanır; çalışır ama daha az çekici olur.)
+(Anahtar yoksa sistem anahtarsız Openverse'ten CC0 fotoğraf arar, o da bulamazsa renkli yazı kartı kullanır.
+Pexels anahtarı görsel kalitesini belirgin şekilde artırır.)
 
 ### 3. YouTube bağlantısı
 1. https://console.cloud.google.com → yeni proje → **APIs & Services > Library**:
@@ -99,7 +100,12 @@ ve alan adlarınızın yıllık yenileme ücreti (zaten ödüyorsunuz).
 - Ortaklık (affiliate) linkleriniz: `kisa-ad: "https://..."` biçiminde
 - İsterseniz nişlerin tohum kelimelerini değiştirin
 
-### 6. Başlatın
+### 6. Önce beta deneyin (önerilir)
+GitHub > **Actions > Otonom sistem > Run workflow** → `beta` seçip çalıştırın.
+Sistem 1 gerçek video + 2 Shorts + site sayfası üretir, **YouTube'a yüklemez**.
+5-10 dakika sonra çalıştırmanın sayfasında en altta **Artifacts** bölümünden indirip izleyin.
+
+### 7. Başlatın
 GitHub > **Actions > Otonom sistem > Run workflow** → `haftalik` seçip çalıştırın.
 Sonrası otomatik: her Pazartesi plan, her gün üretim/yükleme/teklif kontrolü.
 Bir adım hata verirse GitHub size **ücretsiz e-posta** gönderir.
@@ -142,7 +148,7 @@ python -m otonom haftalik --deneme       # hiçbir servise bağlanmadan uçtan u
 python -m pytest -q                      # testler
 ```
 Gerçek çalıştırma için `.env.example` dosyasını `.env` adıyla kopyalayıp doldurun.
-Komutlar: `haftalik, gunluk, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+Komutlar: `beta, haftalik, gunluk, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
 
 ---
 

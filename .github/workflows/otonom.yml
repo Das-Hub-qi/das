@@ -14,7 +14,7 @@ on:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, beta, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
 
 permissions:
   contents: write          # veri/ klasöründeki sonuçları depoya kaydetmek için
@@ -86,7 +86,7 @@ jobs:
           fi
 
       - name: Elle yüklenecek videoları sakla (YouTube bağlantısı yoksa)
-        if: always() && hashFiles('cikti/ELLE_YUKLE') != ''
+        if: always() && (hashFiles('cikti/ELLE_YUKLE') != '' || hashFiles('beta/cikti/ELLE_YUKLE') != '')
         uses: actions/upload-artifact@v4
         with:
           name: videolar-${{ github.run_number }}
@@ -98,3 +98,9 @@ jobs:
             cikti/*/thumbnail.jpg
             cikti/*/metadata.json
             cikti/*/altyazi.srt
+            beta/cikti/*/final_video.mp4
+            beta/cikti/*/shorts_*.mp4
+            beta/cikti/*/thumbnail.jpg
+            beta/cikti/*/metadata.json
+            beta/cikti/*/senaryo.txt
+            beta/site/*/public/**

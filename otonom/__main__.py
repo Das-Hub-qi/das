@@ -8,6 +8,7 @@ Komutlar:
   site       Mikro siteleri oluştur                   analiz    Modül 11
   teklifler  Cloudflare'dan teklifleri al             rapor     Aylık gelir raporu
   maliyet    Bugüne kadarki yapay zekâ harcaması
+  beta       Tek örnek video + Shorts + site üretir, YouTube'a yüklemez ('beta/' klasörü)
 --deneme: Dış servis çağırmadan, geçici klasörde sahte veriyle uçtan uca test.
 """
 from __future__ import annotations
@@ -22,11 +23,14 @@ import tempfile
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="otonom", description="Otonom gelir ve içerik sistemi")
     p.add_argument("komut", choices=["haftalik", "gunluk", "envanter", "nis", "plan", "uret", "alanadi", "site",
-                                     "analiz", "teklifler", "rapor", "maliyet"])
+                                     "analiz", "teklifler", "rapor", "maliyet", "beta"])
     p.add_argument("--deneme", action="store_true", help="dış servis yok, geçici klasör, sahte veri")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
 
+    if a.komut == "beta" and not a.deneme and not os.environ.get("OTONOM_CALISMA"):
+        from pathlib import Path
+        os.environ["OTONOM_CALISMA"] = str(Path(__file__).resolve().parent.parent / "beta")
     if a.deneme and not os.environ.get("OTONOM_CALISMA"):
         os.environ["OTONOM_CALISMA"] = tempfile.mkdtemp(prefix="otonom-deneme-")
         print(f"Deneme klasörü: {os.environ['OTONOM_CALISMA']}")
@@ -63,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
         m12_gelir.tiklamalari_topla(ayar)
     elif k == "rapor":
         ozet_yaz(m12_gelir.aylik_rapor(ayar))
+    elif k == "beta":
+        hatalar = orkestrator.beta(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
     return 1 if hatalar else 0

@@ -56,7 +56,7 @@ def aciklama(ayar: Ayarlar, icerik: dict, bolumler: list[tuple[float, str]], mat
     kanal = next((k.get("kanal_id") for k in ayar.varliklar.get("youtube_kanallari", []) or [] if k.get("kanal_id")), "")
     if kanal:
         parca += [f"🔔 Abone ol: https://www.youtube.com/channel/{kanal}?sub_confirmation=1", ""]
-    kaynaklar = sorted({m["kaynak"] for m in materyal if m.get("kaynak") in ("Pexels", "Pixabay")})
+    kaynaklar = sorted({m["kaynak"] for m in materyal if m.get("kaynak") in ("Pexels", "Pixabay", "Openverse")})
     if kaynaklar:
         parca.append("Görseller: " + ", ".join(kaynaklar) + " (ücretsiz lisans).")
     etiket = " ".join("#" + e.replace(" ", "") for e in icerik["etiketler"][:3])

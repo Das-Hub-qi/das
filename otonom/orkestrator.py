@@ -161,7 +161,7 @@ def uretim_asamasi(ayar: Ayarlar) -> int:
         if vid:
             is_["durum"], is_["youtube_id"] = "yuklendi", vid
             tamam += 1
-        elif not m09_youtube_yukleme.kimlik_var():
+        elif not ayar.yukleme or not m09_youtube_yukleme.kimlik_var():
             is_["durum"] = "elle_yukle"   # dosyalar Actions 'artifacts' bölümünde
             (CIKTI / "ELLE_YUKLE").touch()
             tamam += 1
@@ -213,6 +213,22 @@ def haftalik(ayar: Ayarlar) -> list[str]:
         ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar))),
     ]
     return _adimlar(adimlar)
+
+
+def beta(ayar: Ayarlar) -> list[str]:
+    """Tek bir örnek: 1 uzun video + Shorts + site, YouTube'a YÜKLEMEDEN.
+    Ayrı klasörde ('beta/') çalışır, gerçek verilere dokunmaz. Dosyalar Actions 'artifacts'ta."""
+    ayar.genel["youtube"]["haftalik_uzun_video"] = 1
+    ayar.genel["llm"]["toplu_islem"] = False   # sonucu hemen görmek için anlık istek
+    ayar.yukleme = False
+    plan: list[dict] = []
+    return _adimlar([
+        ("Modül 2 — Niş analizi", lambda: m02_nis_analizi.calistir(ayar)),
+        ("Modül 3 — Plan (1 video)", lambda: plan.extend(m03_icerik_plani.calistir(ayar))),
+        ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
+        ("Modül 5-8 — Üretim", lambda: uretim_asamasi(ayar)),
+        ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
+    ])
 
 
 def gunluk(ayar: Ayarlar) -> list[str]:
