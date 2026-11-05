@@ -56,10 +56,60 @@ def kurulum_listesi(ayar: Ayarlar) -> list[tuple[str, str, str, str]]:
     return s
 
 
+def depo_adresi() -> str:
+    """https://github.com/<sahip>/<depo> — Actions'ta ortamdan, yerelde git ayarından."""
+    import os
+    import re
+    import subprocess
+
+    if os.environ.get("GITHUB_REPOSITORY"):
+        return f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ['GITHUB_REPOSITORY']}"
+    try:
+        url = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True,
+                             timeout=5).stdout.strip()
+        m = re.search(r"github\.com[/:]([^/]+/[^/.]+)", url)
+        return f"https://github.com/{m.group(1)}" if m else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def hizli_erisim(ayar: Ayarlar) -> list[str]:
+    """Tüm sisteme tek yerden ulaşmak için bağlantı listesi."""
+    import os
+
+    depo = depo_adresi()
+    md = ["## ⚡ Hızlı erişim", ""]
+    merkez = (ayar.varliklar.get("iletisim") or {}).get("kontrol_merkezi")
+    if merkez:
+        md.append(f"- 🧭 **Kontrol Merkezi** (tüm sistem tek sayfada): [aç]({merkez})")
+    if depo:
+        md.append(f"- ▶️ **Çalıştır** (beta / haftalık / günlük): [Actions > Otonom sistem > Run workflow]"
+                  f"({depo}/actions/workflows/otonom.yml)")
+        if os.environ.get("GITHUB_RUN_ID"):
+            md.append(f"- 📥 **Bu çalıştırmanın videoları ve günlüğü**: [aç]({depo}/actions/runs/{os.environ['GITHUB_RUN_ID']})"
+                      " (en altta Artifacts)")
+        md.append(f"- 🔑 **Anahtarlar**: [Settings > Secrets]({depo}/settings/secrets/actions)")
+        md.append(f"- 🛠️ **Mühendisin açtığı iş kayıtları**: [Issues]({depo}/issues)")
+    md += ["- ⚙️ **Ayarlar**: [ayarlar.yaml](config/ayarlar.yaml) · [varliklar.yaml](config/varliklar.yaml)"
+           " (dosyayı açıp kalem simgesine dokunun)",
+           "- 📈 **Raporlar**: [veri/raporlar](veri/raporlar) · 👷 [Mühendis günlüğü](veri/muhendis_gunlugu.md)"
+           " · 🗓️ [İçerik takvimi](veri/icerik_takvimi.md)",
+           "- 💰 **Teklifler**: [yanıt taslakları](veri/teklif_taslaklari) · 🏷️ [satış metinleri](veri/alan_adlari)"]
+    siteler = " · ".join(f"[{a['ad']}](https://{a['ad']})" for a in ayar.alan_adlari)
+    if siteler:
+        md.append(f"- 🌐 **Siteler**: {siteler}")
+    kanal = next((k.get("kanal_id") for k in ayar.varliklar.get("youtube_kanallari") or [] if k.get("kanal_id")), "")
+    md.append("- 🎬 **YouTube Studio**: " + (f"[kanalım](https://studio.youtube.com/channel/{kanal})" if kanal
+                                              else "[studio.youtube.com](https://studio.youtube.com)"))
+    md.append("- ☁️ **Cloudflare**: [dash.cloudflare.com](https://dash.cloudflare.com) · 📖 [Kurulum rehberi](README.md)")
+    return md + [""]
+
+
 def olustur(ayar: Ayarlar, komut: str, hatalar: list[str]) -> str:
     zaman = ayar.simdi.strftime("%Y-%m-%d %H:%M")
     durum = (f"{UYARI} {len(hatalar)} adım hata verdi (aşağıda)" if hatalar else f"{TAMAM} Sorunsuz")
     md = ["# 📊 Sistem Durumu", "", f"_Son çalıştırma: {zaman} · komut: `{komut}` · {durum}_", ""]
+    md += hizli_erisim(ayar)
 
     liste = kurulum_listesi(ayar)
     eksik = sum(1 for x in liste if x[0] != TAMAM)

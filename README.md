@@ -7,6 +7,9 @@ kendi kendini iyileştiren otomasyon sistemi.
 - **Laboratuvar:** her hafta performansı ölçer, kazanan nişlere daha çok video ayırır, viral videoların devamını planlar
 - **Alan adları:** her alan adına ücretsiz site (Cloudflare Pages), satış/kiralama teklif formu, hazır satış metinleri
 
+> 🧭 **Tüm sistem tek sayfada → [Kontrol Merkezi](https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf)**
+> (çalıştırma düğmeleri, tüm bağlantılar, test sonuçları, kurulum ilerlemesi)
+>
 > 📊 **Anlık durum, eksik kurulum adımları ve son videolar → [DURUM.md](DURUM.md)**
 > (her çalıştırmada kendiliğinden güncellenir; telefondan GitHub uygulamasıyla da okunur)
 

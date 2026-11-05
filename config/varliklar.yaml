@@ -79,3 +79,4 @@ alan_adlari:
 iletisim:
   eposta: ""                 # teklif e-postalarının yönlendirileceği adres (Cloudflare Email Routing)
   kisa_link_alan_adi: "okyanusbilisimtr.com"   # ortaklık linkleri bu alan adından yönlenir: /git/<kisa_ad>
+  kontrol_merkezi: "https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf"  # tek sayfalık kontrol paneli (özel)
