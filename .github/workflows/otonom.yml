@@ -48,7 +48,7 @@ jobs:
       komut: ${{ steps.k.outputs.komut }}
       kanallar: ${{ steps.k.outputs.kanallar }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -96,7 +96,7 @@ jobs:
       KOMUT: ${{ needs.hazirlik.outputs.komut }}
       KANAL: ${{ matrix.kanal }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -186,7 +186,7 @@ jobs:
       REPO_OZEL: ${{ github.event.repository.private }}
       KOMUT: ${{ needs.hazirlik.outputs.komut }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Kanal işlerinin kaydettiği son veriyi al
         run: git pull -q --rebase origin "${GITHUB_REF_NAME}" || true
       - uses: actions/setup-python@v5

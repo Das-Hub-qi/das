@@ -44,7 +44,7 @@ jobs:
       contents: write      # youtube_kanali.json / yetki.json kaydı
       issues: write        # onay konusu ve bağlantı yorumu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
