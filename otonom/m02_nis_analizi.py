@@ -165,6 +165,24 @@ def wikipedia_bugun(dil: str, gun) -> list[str]:
     return []
 
 
+# Reklamverene uygun olmayan / hukuki risk taşıyan gündem konuları (ölüm, suç, kumar, yetişkin içerik vb.)
+YASAK = re.compile(r"(öldü|ölü|ölüm|cinayet|öldür|saldırı|terör|tecavüz|taciz|istismar|intihar|yaralı|"
+                   r"gözaltı|tutuklan|şüpheli|cesed|ceset|bahis|kumar|casino|porno|\+18|seks|uyuşturucu|"
+                   r"silah|bomba|patlama|katliam|murder|killed|dead|suicide|terror|porn|casino|betting)", re.I)
+
+
+def guvenli_konu(konu: str) -> str:
+    """Dış kaynaktan (gündem, RSS, Vikipedi) gelen başlığı temizler: link/komut kalıpları çıkarılır,
+    uzunluk sınırlanır, reklamverene uygun olmayan konular elenir. Boş dönerse konu kullanılmaz."""
+    konu = re.sub(r"https?://\S+|[<>{}\[\]`]", " ", konu)
+    konu = re.sub(r"\s+", " ", konu).strip()[:140]
+    if not konu or YASAK.search(konu):
+        return ""
+    if re.search(r"(talimat|instruction|ignore|önceki|system prompt|yok say)", konu, re.I):
+        return ""   # yapay zekâya komut sokma girişimi gibi görünen başlıklar
+    return konu
+
+
 def kaynak_adaylari(ayar: Ayarlar, nis: dict) -> dict[str, tuple[float, str]]:
     """Nişin tüm kaynaklarından adaylar: konu -> (talep 0-1, kaynak türü). Aynı konu en yüksek talebi alır."""
     dil = ayar.kanal_bilgi.get("dil", "tr")
@@ -172,6 +190,9 @@ def kaynak_adaylari(ayar: Ayarlar, nis: dict) -> dict[str, tuple[float, str]]:
     aday: dict[str, tuple[str, float, str]] = {}   # normal_ad -> (konu, talep, kaynak)
 
     def ekle(konu: str, talep: float, tur: str) -> None:
+        konu = guvenli_konu(konu) if tur != "youtube_oneri" else konu
+        if not konu:
+            return
         anahtar = kisa_ad(konu, 80)
         if anahtar and (anahtar not in aday or aday[anahtar][1] < talep):
             aday[anahtar] = (konu, talep, tur)

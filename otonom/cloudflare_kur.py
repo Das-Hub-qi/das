@@ -88,3 +88,18 @@ def _dns_kaydi(alan: str, hedef: str) -> None:
         return
     _istek("POST", f"/zones/{zid}/dns_records",
            json={"type": "CNAME", "name": alan, "content": hedef, "proxied": True})
+
+
+def dns_txt_ekle(alan: str, deger: str) -> bool:
+    """Alan adının kökün TXT kaydını ekler (Google doğrulaması için). Zaten varsa dokunmaz."""
+    if not hazir():
+        return False
+    bolge = _istek("GET", "/zones", params={"name": alan}).get("result") or []
+    if not bolge:
+        return False
+    zid = bolge[0]["id"]
+    mevcut = _istek("GET", f"/zones/{zid}/dns_records", params={"type": "TXT", "name": alan}).get("result") or []
+    if any(k.get("content", "").strip('"') == deger for k in mevcut):
+        return True
+    return bool(_istek("POST", f"/zones/{zid}/dns_records",
+                       json={"type": "TXT", "name": alan, "content": deger, "ttl": 300}).get("success"))

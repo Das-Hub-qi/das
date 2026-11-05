@@ -26,7 +26,7 @@ import time
 
 KANAL_KOMUTLARI = {"haftalik", "gunluk", "beta", "nis", "plan", "uret", "analiz", "muhendis"}
 GENEL_KOMUTLAR = {"envanter", "alanadi", "site", "teklifler", "rapor", "maliyet", "cloudflare", "durum",
-                  "yeni_kanal", "kanallar"}
+                  "yeni_kanal", "kanallar", "arama"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,6 +107,9 @@ def main(argv: list[str] | None = None) -> int:
         from . import cloudflare_kur
         cloudflare_kur.kv_kimligi()
         cloudflare_kur.alan_adlarini_bagla(ayar)
+    elif k == "arama":
+        from . import arama_motoru
+        arama_motoru.calistir(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
     elif k == "yeni_kanal":
@@ -115,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             kanal_sihirbazi.olustur(ayar, a.aciklama)
         except (ValueError, llm.LLMHatasi) as e:
             hatalar.append(f"Yeni kanal oluşturulamadı: {e}")
-    if k != "cloudflare":  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
+    if k not in ("cloudflare", "arama"):  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
         butce.kaydet(ayar, f"{k}-genel" if k in KANAL_KOMUTLARI else k, time.time() - baslangic)
         durum_paneli.yaz(ayar, k, hatalar)
     return 1 if hatalar else 0

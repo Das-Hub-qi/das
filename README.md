@@ -9,6 +9,8 @@ Hiçbir ücretli hesap gerektirmez.
 > 🧭 **Tüm sistem tek sayfada → [Kontrol Merkezi](https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf)**
 > (çalıştırma düğmeleri, tüm bağlantılar, test sonuçları, kurulum ilerlemesi)
 >
+> 🔒 Güvenlik: [SECURITY.md](SECURITY.md) · 🔁 Yeni oturumda devam: [DEVAM.md](DEVAM.md)
+>
 > 📊 **Canlı durum, eksik kurulum adımları ve son videolar → [DURUM.md](DURUM.md)**
 > (her çalıştırmada kendiliğinden güncellenir; telefondan GitHub uygulamasıyla da okunur)
 

@@ -34,6 +34,8 @@ KANAL_CONFIG = CONFIG / "kanallar"
 KANALLAR_VERI = VERI / "kanallar"
 KANAL_MODU = bool(os.environ.get("OTONOM_KANAL", "").strip())
 KANAL = os.environ.get("OTONOM_KANAL", "").strip() or "ana"
+if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,39}", KANAL):  # güvenlik: klasör yolu dışına çıkılamasın
+    raise SystemExit(f"Geçersiz kanal kodu: {KANAL!r} (yalnızca küçük harf, rakam ve '-' kullanılabilir)")
 KANAL_VERI = KANALLAR_VERI / KANAL
 ISLETME = KANAL_VERI if KANAL_MODU else VERI   # kota, uyarı, maliyet, süre kayıtlarının bu süreçteki yeri
 

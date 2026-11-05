@@ -29,6 +29,8 @@ IZINLER = [
 ]
 
 kanal = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].endswith(".json") else "ana"
+if kanal == "arama":  # Google Search Console otomatik kaydı için ayrı anahtar (GOOGLE_ARAMA_TOKEN)
+    IZINLER = ["https://www.googleapis.com/auth/siteverification", "https://www.googleapis.com/auth/webmasters"]
 dosya = Path(next((a for a in sys.argv[1:] if a.endswith(".json")), "client_secret.json"))
 if not dosya.exists():
     sys.exit(f"{dosya} bulunamadı. Google Cloud'dan indirdiğiniz JSON dosyasının yolunu verin.")
@@ -39,6 +41,6 @@ istemci = json.loads(dosya.read_text())["installed"]
 print("\nAşağıdaki değerleri GitHub Secrets'a ekleyin (ilk ikisi tüm kanallar için bir kez yeterli):\n")
 print(f"YT_CLIENT_ID      = {istemci['client_id']}")
 print(f"YT_CLIENT_SECRET  = {istemci['client_secret']}")
-print(f"YT_REFRESH_TOKEN_{kanal.upper().replace('-', '_')}  = {kimlik.refresh_token}")
+print(f"{'GOOGLE_ARAMA_TOKEN' if kanal == 'arama' else 'YT_REFRESH_TOKEN_' + kanal.upper().replace('-', '_')}  = {kimlik.refresh_token}")
 print(f"\n(Bu anahtar yalnızca '{kanal}' kanalının videolarını yükler.)")
 print("\nBu değerleri kimseyle paylaşmayın. client_secret.json dosyasını depoya eklemeyin.")

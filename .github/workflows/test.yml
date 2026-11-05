@@ -4,6 +4,11 @@ name: Test
 on:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 3"   # her çarşamba: yeni açıklanan paket açıklarını yakalamak için
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -19,4 +24,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
           pip install -q -r requirements.txt
-      - run: python -m pytest -q
+      - name: Testler (gizli anahtar taraması dahil)
+        run: python -m pytest -q
+      - name: Bağımlılık açığı taraması (pip-audit, ücretsiz OSV/PyPI veritabanı)
+        run: |
+          pip install -q pip-audit
+          # PYSEC-2026-2447 (diskcache, llama.cpp alt paketi): yalnızca önbellek klasörüne yazabilen saldırganı
+          # etkiler; sistem bu önbelleği kullanmaz ve sunucu her çalıştırmada sıfırdan kurulur (SECURITY.md).
+          pip-audit -r requirements.txt -r requirements-yerel.txt --progress-spinner off --ignore-vuln PYSEC-2026-2447

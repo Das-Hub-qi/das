@@ -15,8 +15,10 @@ export async function onRequestPost({ request, env }) {
     return yanit(request, 400, "Form okunamadı.");
   }
 
-  // Bot tuzağı: gerçek kullanıcı bu gizli alanı boş bırakır.
+  // Bot tuzakları: gerçek kullanıcı gizli alanı boş bırakır ve formu sayfa açıldıktan en az 3 sn sonra gönderir.
   if (veri.web_sitesi) return yanit(request, 200, "Teşekkürler.");
+  const gecen = Date.now() - Number(veri.t || 0);
+  if (!veri.t || gecen < 3000 || gecen > 86400000) return yanit(request, 200, "Teşekkürler.");
 
   const eposta = String(veri.eposta || "").trim().slice(0, 200);
   const teklif = Number(String(veri.teklif || "").replace(/[^\d]/g, ""));

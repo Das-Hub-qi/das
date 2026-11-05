@@ -27,8 +27,7 @@ on:
         default: ""
 
 permissions:
-  contents: write          # veri/ ve yeni kanal dosyalarını depoya kaydetmek için
-  issues: write            # Öğrenme Mühendisi'nin sorun/öneri kayıtları için
+  contents: read           # varsayılan en az yetki; yazma izni yalnızca gereken işlere verilir
 
 concurrency:
   group: otonom            # iki çalıştırma aynı anda olmasın
@@ -42,6 +41,8 @@ jobs:
   # 1) Komutu ve çalışacak kanalları belirle (hafif, ~20 sn)
   hazirlik:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       komut: ${{ steps.k.outputs.komut }}
       kanallar: ${{ steps.k.outputs.kanallar }}
@@ -79,15 +80,16 @@ jobs:
     if: needs.hazirlik.outputs.kanallar != '[]' && needs.hazirlik.outputs.kanallar != ''
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    permissions:
+      contents: write        # kanal verisini kaydetmek için
+      issues: write          # Öğrenme Mühendisi'nin iş kayıtları için
     strategy:
       fail-fast: false       # bir kanalın hatası diğerlerini durdurmaz
       max-parallel: 6
       matrix:
         kanal: ${{ fromJSON(needs.hazirlik.outputs.kanallar) }}
-    env:
+    env:                     # GÜVENLİK: gizli anahtarlar burada değil, yalnızca onları kullanan adımlarda
       REPO_OZEL: ${{ github.event.repository.private }}   # herkese açık depoda dakika sınırı yok
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TUM_GIZLILER: ${{ toJSON(secrets) }}                 # her kanalın kendi anahtarı (YT_REFRESH_TOKEN_<KANAL>)
       KOMUT: ${{ needs.hazirlik.outputs.komut }}
       KANAL: ${{ matrix.kanal }}
     steps:
@@ -104,6 +106,8 @@ jobs:
           pip install -q -r requirements.txt
       - name: Yapay zekâ sağlayıcısını belirle
         id: yz
+        env:
+          TUM_GIZLILER: ${{ toJSON(secrets) }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import os
@@ -126,6 +130,9 @@ jobs:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
         run: pip install -q -r requirements-yerel.txt
       - name: Kanalı çalıştır
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TUM_GIZLILER: ${{ toJSON(secrets) }}   # her kanalın kendi anahtarı (YT_REFRESH_TOKEN_<KANAL>)
         run: python -m otonom "$KOMUT" --kanal "$KANAL"
       - name: Beta sitesini hazırla (önizleme)
         if: always() && env.KOMUT == 'beta'
@@ -169,13 +176,12 @@ jobs:
     if: always() && needs.hazirlik.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    env:
+    permissions:
+      contents: write
+      issues: write
+    env:                     # GÜVENLİK: gizli anahtarlar yalnızca onları kullanan adımlarda
       REPO_OZEL: ${{ github.event.repository.private }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TUM_GIZLILER: ${{ toJSON(secrets) }}
       KOMUT: ${{ needs.hazirlik.outputs.komut }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - name: Kanal işlerinin kaydettiği son veriyi al
@@ -198,9 +204,16 @@ jobs:
         env:
           CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
         run: pip install -q -r requirements-yerel.txt
+      - name: Cloudflare bağlı mı?
+        id: cf
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: echo "var=$([ -n "$CF" ] && echo 1 || echo 0)" >> "$GITHUB_OUTPUT"
       - name: Genel adımları çalıştır
         env:
           ACIKLAMA: ${{ github.event.inputs.aciklama }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TUM_GIZLILER: ${{ toJSON(secrets) }}
         run: |
           if [[ "$KANAL_KOMUTLARI" == *" $KOMUT "* ]]; then
             python -m otonom "$KOMUT" --genel
@@ -208,11 +221,18 @@ jobs:
             python -m otonom "$KOMUT" --aciklama "$ACIKLAMA"
           fi
       - name: Siteleri Cloudflare Pages'e yükle (yalnızca değişenler)
-        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.KOMUT != 'beta'
+        if: always() && steps.cf.outputs.var == '1' && env.KOMUT != 'beta'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bash araclar/siteleri_yukle.sh
-      - name: Alan adlarını sitelere bağla (otomatik, ilk seferde)
-        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: python -m otonom cloudflare
+      - name: Alan adlarını bağla ve arama motorlarına bildir (Google, Bing, Yandex)
+        if: always() && env.KOMUT != 'beta'
+        env:
+          TUM_GIZLILER: ${{ toJSON(secrets) }}
+        run: |
+          [ "${{ steps.cf.outputs.var }}" = "1" ] && python -m otonom cloudflare || true
+          python -m otonom arama
       - name: Sonuçları ve yeni kanalları depoya kaydet
         if: always()
         run: |

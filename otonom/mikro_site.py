@@ -33,6 +33,24 @@ background:var(--bg);color:var(--fg);width:100%}button{background:var(--vurgu);c
 """
 
 
+def guvenlik_basliklari(ayar: Ayarlar) -> str:
+    """Cloudflare Pages güvenlik başlıkları: XSS, çerçeveleme, MIME, izin ve HTTPS koruması."""
+    reklam = bool((ayar.genel.get("cloudflare") or {}).get("adsense_yayinci_id"))
+    # AdSense çok sayıda alan adından içerik yükler; açıksa CSP gevşetilir, kapalıysa sıkı tutulur.
+    csp = ("default-src 'self'; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com "
+           "https://*.doubleclick.net https://*.google.com; script-src 'self' 'unsafe-inline' https:; "
+           "style-src 'self' 'unsafe-inline'; connect-src 'self' https:; frame-ancestors 'none'" if reklam else
+           "default-src 'self'; img-src 'self' data: https://i.ytimg.com; frame-src https://www.youtube-nocookie.com; "
+           "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; "
+           "connect-src 'self' https://cloudflareinsights.com; form-action 'self'; base-uri 'self'; frame-ancestors 'none'")
+    return ("/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n"
+            "  X-Frame-Options: DENY\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n"
+            "  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\n"
+            "  Cross-Origin-Opener-Policy: same-origin\n"
+            f"  Content-Security-Policy: {csp}\n"
+            "/yazi/*\n  Cache-Control: public, max-age=3600\n")
+
+
 def proje_adi(alan_adi: str) -> str:
     return kisa_ad(alan_adi, 58)
 
@@ -74,6 +92,7 @@ def _satis_kutusu(a: dict, one_cikan: bool) -> str:
 <select name="tur"><option value="satis">Satın almak istiyorum</option><option value="kiralama">Kiralamak istiyorum (aylık)</option></select>
 <textarea name="mesaj" rows="3" placeholder="Mesajınız (isteğe bağlı)" maxlength="1000"></textarea>
 <input class="gizli" name="web_sitesi" tabindex="-1" autocomplete="off" aria-hidden="true">
+<input type="hidden" name="t" id="t"><script>document.getElementById("t").value=Date.now()</script>
 <button type="submit">Teklif gönder</button>
 <small>Bilgileriniz yalnızca teklifinize yanıt vermek için kullanılır.</small></form></section>"""
 
@@ -131,7 +150,8 @@ def olustur(ayar: Ayarlar) -> list[str]:
                      'title="Video" allowfullscreen></iframe></div>' if m["youtube_id"] else "")
             govde_html = markdown.markdown(html.escape(m["govde_md"], quote=False), extensions=["extra"])
             ld = json.dumps({"@context": "https://schema.org", "@type": "Article", "headline": m["baslik"],
-                             "description": m["meta_aciklama"], "inLanguage": "tr"}, ensure_ascii=False)
+                             "description": m["meta_aciklama"], "inLanguage": "tr"},
+                            ensure_ascii=False).replace("</", "<\\/")  # güvenlik: metin script etiketini kapatamasın
             sayfa = _sayfa(ayar, alan, m["baslik"], m["meta_aciklama"],
                            f"<article><h1>{html.escape(m['baslik'])}</h1>{video}{govde_html}</article>",
                            f"/yazi/{m['kod']}/", f'<script type="application/ld+json">{ld}</script>')
@@ -161,6 +181,9 @@ def olustur(ayar: Ayarlar) -> list[str]:
         (pub / "gizlilik").mkdir()
         (pub / "gizlilik" / "index.html").write_text(_sayfa(ayar, alan, "Gizlilik", "Gizlilik politikası", gizlilik, "/gizlilik/"), encoding="utf-8")
         (pub / "404.html").write_text(_sayfa(ayar, alan, "Sayfa bulunamadı", "404", "<h1>Sayfa bulunamadı</h1><p><a href='/'>Ana sayfa</a></p>"), encoding="utf-8")
+        from .arama_motoru import indexnow_anahtari  # Bing/Yandex anında dizinleme doğrulama dosyası
+        anahtar = indexnow_anahtari(alan)
+        (pub / f"{anahtar}.txt").write_text(anahtar, encoding="utf-8")
         (pub / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: https://{alan}/sitemap.xml\n", encoding="utf-8")
         (pub / "sitemap.xml").write_text(
             '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -169,8 +192,7 @@ def olustur(ayar: Ayarlar) -> list[str]:
         pub_id = (ayar.genel.get("cloudflare", {}) or {}).get("adsense_yayinci_id")
         if pub_id:
             (pub / "ads.txt").write_text(f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n", encoding="utf-8")
-        (pub / "_headers").write_text("/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n"
-                                      "/yazi/*\n  Cache-Control: public, max-age=3600\n", encoding="utf-8")
+        (pub / "_headers").write_text(guvenlik_basliklari(ayar), encoding="utf-8")
 
         # Pages Functions
         if satis:
