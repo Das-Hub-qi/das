@@ -194,7 +194,7 @@ Kasım 2026'da işlemcide çalışabilen güncel küçük modeller bu sistemin g
 | Model | Dosya | Hız | Türkçe kalitesi |
 |---|---|---|---|
 | **Gemma 4 E2B** (seçilen) | 3,1 GB | 6,8 token/sn (tam senaryo: 7,5 dk) | Akıcı ve doğru; en hızlı |
-| Gemma 4 E4B | 5,0 GB | 4,5 token/sn | En akıcı ama yavaş; ücretsiz sunucunun 7 GB belleğini zorlar |
+| Gemma 4 E4B | 5,0 GB | 4,5 token/sn | En akıcı ama yavaş; çalışırken **8,8 GB bellek** kullandı → ücretsiz özel sunucuya (7 GB) sığmaz |
 | Qwen3.5 4B | 2,7 GB | 4,6 token/sn | Belirgin dil bilgisi hataları |
 
 Küçük modeller ara sıra hatalı bilgi yazabilir (testte "pomodoro 18 dakika" dedi; doğrusu 25):
