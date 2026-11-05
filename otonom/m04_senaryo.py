@@ -86,7 +86,10 @@ faydalı, alt başlıklı, 600-900 kelime, sonda 3 soruluk SSS."""
 def istek_olustur(ayar: Ayarlar, v: dict) -> dict:
     nis = ayar.nis(v["nis"])
     site = nis.get("alan_adi") or ""
-    hedef = int(ayar["youtube"]["hedef_kelime"])
+    deney = v.get("deney") or {}
+    hedef = int(deney.get("hedef_kelime") or ayar["youtube"]["hedef_kelime"])
+    from .optimizasyon import BASLIK_STILLERI
+    stil = BASLIK_STILLERI.get(deney.get("baslik_stili", ""), "")
     sahne = max(4, round(hedef / 75))
     istem = f"""Konu: {v['konu']}
 Ana anahtar kelime: {v['anahtar_kelime']}
@@ -94,6 +97,7 @@ Ana anahtar kelime: {v['anahtar_kelime']}
 Hedef kitle: {v.get('hedef_kitle') or nis['hedef_kitle']}
 Kanal nişi: {nis['ad']}
 Başlık fikirleri: {' | '.join(v['basliklar'])}
+{("Başlık kuralı (deney): " + stil) if stil else ""}
 {"İzleyiciyi şu siteye davet et: " + site if site else ""}
 
 Uzun video toplam {hedef - 100}-{hedef + 100} kelime olsun: tam {sahne} sahne yaz,

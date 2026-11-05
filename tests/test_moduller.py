@@ -34,11 +34,15 @@ def test_firsat_puani_rekabet_yoksa_talebe_esit():
     assert kolay > zor and etiket == "düşük"
 
 
-def test_dagit_kazanan_nise_daha_cok_uretim():
+def test_dagit_thompson_kazanan_nise_yogunlasir_ama_kesfi_birakmaz():
     rng = random.Random(1)
-    secim = m03_icerik_plani.dagit(["a", "b"], {"a": 1.6, "b": 0.3}, 1000, 0.0, rng)
-    assert secim.count("a") > 3 * secim.count("b")
-    assert m03_icerik_plani.dagit([], {}, 3, 0.2, rng) == []
+    gozlem = [("a", 0.8, 5)] * 8 + [("b", 0.3, 5)] * 8           # a açıkça daha iyi
+    secim = m03_icerik_plani.dagit(["a", "b", "c"], gozlem, 1000, rng, 45)
+    assert secim.count("a") > secim.count("b") * 5
+    assert secim.count("c") > 0                                  # hiç denenmemiş niş de şans bulur
+    esit = m03_icerik_plani.dagit(["a", "b"], [], 1000, rng, 45)  # veri yokken dengeli keşif
+    assert 350 < esit.count("a") < 650
+    assert m03_icerik_plani.dagit([], [], 3, rng, 45) == []
 
 
 def test_yayin_zamanlari_dogru_gun_ve_saat():
@@ -85,8 +89,6 @@ def test_yuzdelik_ve_puanlama():
     m11_analiz.puanla(videolar)
     assert videolar[0]["skor"] > videolar[1]["skor"]
     assert videolar[2]["skor"] == 50.0  # tek shorts kendi grubunda ortada
-    agirlik = m11_analiz.nis_agirliklari(videolar, ["a", "b", "c"])
-    assert agirlik["c"] == 1.0  # verisi olmayan niş nötr kalır
 
 
 def test_haftalik_dongu_deneme_modunda_uctan_uca(tmp_path: Path):
@@ -201,3 +203,26 @@ def test_durum_paneli_eksikleri_gosterir():
 
     metin = durum_paneli.olustur(yukle(deneme=True), "gunluk", ["Örnek hata"])
     assert "Kurulum kontrol listesi" in metin and "YouTube yükleme" in metin and "Örnek hata" in metin
+
+
+def test_optimizasyon_algoritmalari():
+    from otonom import optimizasyon as o
+
+    # Zaman aşınması: 45 günlük gözlem yarı ağırlıkta
+    assert abs(o.agirlik(45, 45) - 0.5) < 1e-9
+    post = o.posterior([("x", 1.0, 0), ("x", 1.0, 0), ("y", 0.0, 0)], ["x", "y"], 45)
+    assert post["x"][0] == 3.0 and post["y"][1] == 2.0
+    olasilik = o.kazanma_olasiligi(post)
+    assert olasilik["x"] > 0.8 and abs(sum(olasilik.values()) - 1) < 1e-6
+    # Yaşa göre düzeltme: aynı izlenmeye daha genç yaşta ulaşan video daha başarılıdır
+    vids = [{"yas_gun": g, "goruntulenme": 100 * g} for g in (5, 10, 20, 40)] + [{"yas_gun": 5, "goruntulenme": 4000}]
+    artik = o.yas_duzeltilmis(vids)
+    assert artik[-1] == max(artik)
+    # Trend: yeni çıkan ve yükselen konu bonus alır, düşen almaz
+    bonus = o.trend_bonusu({"yeni konu": 0.5, "eski konu": 0.9, "duşen": 0.2}, {"eski konu": 0.6, "duşen": 0.5})
+    assert bonus["yeni konu"] == 0.15 and 0 < bonus["eski konu"] <= 0.15 and "duşen" not in bonus
+    # Çeşitlilik: neredeyse aynı konu elenir, farklı konu kalır
+    adaylar = [{"konu": "odaklanma nasıl artırılır"}, {"konu": "odaklanma nasıl arttırılır"},
+               {"konu": "uyku ve hafıza ilişkisi"}]
+    kalan = [a["konu"] for a in o.cesitlendir(adaylar, ["Odaklanma Nasıl Artırılır? 4 Alışkanlık"])]
+    assert kalan == ["uyku ve hafıza ilişkisi"]

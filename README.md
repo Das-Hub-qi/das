@@ -36,7 +36,7 @@ Sistem **hiçbir ücretli hesap olmadan** çalışır. Tek gider alan adlarını
 | Anlık yapay zekâ çağrısı | **Toplu işlem (Batch API)**: Pazartesi gönderilir, öğlen alınır | %50 ucuz, bekleme dakikası harcanmaz |
 | MoviePy | **Doğrudan ffmpeg**, sahne başına kodlama + kopyalayarak birleştirme | 5-10 kat hızlı, ücretsiz dakikalar korunur |
 | Skor = İzlenme×0,5 + CTR×0,3 + Süre×0,2 | **Yüzdelik sıra** puanı (ölçek farkı yok), Shorts/uzun ayrı | Gerçekten iyi videoyu bulur |
-| Sabit 4 haftalık takvim | **Her hafta güncel veriyle plan** + kazanan nişe daha çok video (%20 keşif payı) | Sistem kendini iyileştirir |
+| Sabit 4 haftalık takvim | **Her hafta güncel veriyle plan**, Thompson örneklemesiyle niş/başlık/uzunluk/saat seçimi | Sistem kendini iyileştirir |
 | Google Sheets | Depodaki **CSV + Markdown rapor** | Ek hesap/izin yok, geçmiş saklanır |
 | Açıklamaya doğrudan ortaklık linki | **Kendi alan adınızdan kısa link** (`/git/kurs`) + tıklama sayımı | Link değişince eski videolar otomatik düzelir |
 | 3 sn boş intro | Doğrudan **kanca** ile başlangıç (isteğe bağlı açılır) | İlk saniyelerde izleyici kaybı azalır |
@@ -45,6 +45,23 @@ Sistem **hiçbir ücretli hesap olmadan** çalışır. Tek gider alan adlarını
 | A/B testi (elle) | Zayıf videoda **alternatif başlık otomatik denenir**, 7 gün sonra kazanan kalır | İzlenmeyen video kurtarılır |
 | Ücretli yapay zekâ | **Ücretsiz yerel model** (Gemma 4), anahtar varsa otomatik Claude | Gerçekten 0 ₺ |
 | Domain parking | Ücretsiz **site + teklif formu**; teklif gelince yanıt taslağı hazırlanır | Park gelirinden fazlası, sıfır maliyet |
+
+## 🧠 Kendi kendine öğrenen optimizasyon (laboratuvar)
+
+| Algoritma | Ne yapar? |
+|---|---|
+| **Thompson örneklemesi** (Bayesçi çok kollu haydut) | Her hafta nişleri, başlık stilini (soru / sayılı liste / nasıl / çarpıcı gerçek), video uzunluğunu (~5/7/9 dk) ve yayın saatini başarı dağılımlarından örnek çekerek seçer. Veri azken her şeyi dener, kazanan netleştikçe ona yoğunlaşır, keşfi asla tamamen bırakmaz. |
+| **Zaman aşınması** (yarı ömür 45 gün) | Eski videoların etkisi azalır; izleyici zevki değişirse sistem uyum sağlar. |
+| **Yaşa göre düzeltilmiş puan** | Kanalın izlenme-yaş eğrisi (log-log regresyon) kurulur; 3 günlük ve 60 günlük videolar adil karşılaştırılır. |
+| **Trend momentumu** | Arama önerileri haftadan haftaya karşılaştırılır; yeni çıkan veya yükselen konular öne alınır. |
+| **Çeşitlilik filtresi** | Yayınlanmış bir konuya çok benzeyen konu elenir (Türkçe yazım farkları dahil: artırmak = arttırmak). |
+| **A/B başlık testi** | Zayıf videoda alternatif başlık denenir; 7 gün sonra kötüyse eskiye dönülür. |
+| **Viral takip** | 10.000 izlenmeyi geçen videonun devamı bir sonraki plana öncelikli girer. |
+
+20 haftalık simülasyonda, gizli "en iyi" niş ve başlık stili verildiğinde sistem bunları kendi buldu:
+en iyi nişin üretim payı %33 → %67, en iyi başlık stilinin payı %17 → %50'ye çıktı.
+Öğrenilenler her çalıştırmada **DURUM.md > Laboratuvar öğrenimi** bölümünde görünür.
+Denenecek seçenekler `config/ayarlar.yaml > optimizasyon` bölümünden değiştirilebilir.
 
 ## 🛡️ Sınıra takılınca ne olur? — Sistem durmaz
 

@@ -1,14 +1,16 @@
-"""MODÜL 3 — YouTube içerik planı.
+"""MODÜL 3 — YouTube içerik planı (dinamik).
 
-Verimlilik: 4 haftalık sabit takvim yerine HER HAFTA güncel veriyle yenilenen plan.
-Laboratuvarın (Modül 11) ölçtüğü niş başarısına göre videolar nişlere dağıtılır;
-bir kısmı (keşif oranı) yeni şeyler denemeye ayrılır. Viral videoların devamı önceliklidir.
+Her hafta güncel veriyle yeniden planlanır:
+  * Niş seçimi: Thompson örneklemesi (laboratuvarın öğrendiği başarı dağılımlarından örnek çekilir).
+  * Her videoya bir "deney" atanır: başlık stili, video uzunluğu, yayın saati (yine Thompson ile).
+  * Aday konular çeşitlilik filtresinden geçer (yayınlanmışa çok benzeyen konu elenir).
+  * Viral videoların devamı her zaman önce gelir.
 """
 from __future__ import annotations
 
 import random
 
-from . import llm
+from . import llm, optimizasyon
 from .ayarlar import VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
 
 PLAN_SEMASI = {
@@ -45,61 +47,76 @@ Kurallar:
 - Daha önce yayınlanan başlıkları tekrar etme."""
 
 
-def dagit(nis_kodlari: list[str], agirliklar: dict[str, float], adet: int, kesif: float, rng: random.Random) -> list[str]:
-    """Çok kollu haydut (epsilon-greedy) mantığı: kazananlara daha çok, ama keşfi bırakmadan."""
+def dagit(nis_kodlari: list[str], gozlemler: list, adet: int, rng: random.Random, yari_omur: float) -> list[str]:
+    """Thompson örneklemesiyle niş dağıtımı. Her slot için ayrı örnek çekilir:
+    belirsiz nişler de şans bulur, kanıtlanmış kazanan çoğunluğu alır."""
     if not nis_kodlari:
         return []
-    w = [max(0.01, agirliklar.get(k, 1.0)) for k in nis_kodlari]
-    secim = []
-    for _ in range(adet):
-        if rng.random() < kesif:
-            secim.append(rng.choice(nis_kodlari))
-        else:
-            secim.append(rng.choices(nis_kodlari, weights=w, k=1)[0])
-    return secim
+    post = optimizasyon.posterior(gozlemler, nis_kodlari, yari_omur)
+    return [optimizasyon.thompson_sec(post, rng) for _ in range(adet)]
+
+
+def _deneyler(ayar: Ayarlar) -> dict[str, list]:
+    d = dict(ayar["optimizasyon"]["deneyler"])
+    if ayar["youtube"]["gizlilik"] != "zamanla":
+        d.pop("yayin_saati", None)  # zamanlama yokken yayın saati denenemez (öğrenme gürültüsü olur)
+    return {k: v for k, v in d.items() if v}
 
 
 def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) -> list[dict]:
     yil, hafta, _ = ayar.simdi.isocalendar()
+    bugun = ayar.simdi.date()
     adet = int(ayar["youtube"]["haftalik_uzun_video"])
     nis_analizi = nis_analizi if nis_analizi is not None else json_oku(VERI / "nis_analizi.json", {})
-    agirlik = json_oku(VERI / "nis_agirliklari.json", {})
+    ogren = json_oku(VERI / "optimizasyon.json", {}).get("gozlemler", {})
     oncelikli = json_oku(VERI / "oncelikli_konular.json", [])
+    yo = float(ayar["optimizasyon"]["yari_omur_gun"])
+    rng = random.Random(yil * 100 + hafta)
 
     kodlar = [n["kod"] for n in ayar.nisler if nis_analizi.get(n["kod"])]
-    rng = random.Random(yil * 100 + hafta)
     oncelik = oncelikli[:adet]
-    dagilim = dagit(kodlar, agirlik, adet - len(oncelik), float(ayar["laboratuvar"]["kesif_orani"]), rng)
+    dagilim = dagit(kodlar, optimizasyon.yasli(ogren.get("nis", []), bugun), adet - len(oncelik), rng, yo)
     if not dagilim and not oncelik:
         log.warning("Plan yapılamadı: niş analizi boş.")
         return []
 
-    yayinlanan = [s["baslik"] for s in csv_oku(VERI / "yayinlananlar.csv")][-60:]
-    istek = ["Bu hafta üretilecek videolar:"]
-    for o in oncelik:
-        istek.append(f"- niş={o['nis']}: ÖNCELİKLİ devam videosu -> {o['konu']}")
-    for kod in dagilim:
-        n = ayar.nis(kod)
-        adaylar = ", ".join(a["konu"] for a in nis_analizi[kod][:15])
-        istek.append(f"- niş={kod} ({n['ad']}, kitle: {n['hedef_kitle']}). Aday konular: {adaylar}")
-    istek.append("\nAynı hafta içinde aynı konuyu iki kez seçme.")
+    # Her slotun nişi ve deney kolları (Thompson)
+    deneyler = _deneyler(ayar)
+    istat = {ad: optimizasyon.yasli(ogren.get(ad, []), bugun) for ad in deneyler}
+    slotlar = [{"nis": o["nis"], "oncelikli": o["konu"]} for o in oncelik] + [{"nis": k} for k in dagilim]
+    for sl in slotlar:
+        sl["deney"] = optimizasyon.deney_secimleri(deneyler, istat, rng, yo)
+
+    yayinlanan = [x["baslik"] for x in csv_oku(VERI / "yayinlananlar.csv")][-200:]
+    gecmis_plan = [v["konu"] for d in sorted((VERI / "plan").glob("*.json"))[-8:] for v in json_oku(d, [])]
+    esik = float(ayar["optimizasyon"]["benzerlik_esigi"])
+    istek = ["Bu hafta üretilecek videolar (AYNI SIRAYLA, her satır için bir video döndür):"]
+    for i, sl in enumerate(slotlar, 1):
+        n = ayar.nis(sl["nis"])
+        stil = optimizasyon.BASLIK_STILLERI.get(sl["deney"].get("baslik_stili", ""), "")
+        if sl.get("oncelikli"):
+            istek.append(f"{i}. niş={sl['nis']}: ÖNCELİKLİ devam videosu -> {sl['oncelikli']}. {stil}")
+            continue
+        temiz = optimizasyon.cesitlendir(nis_analizi[sl["nis"]], yayinlanan + gecmis_plan, esik)
+        adaylar = ", ".join(a["konu"] + (" (YÜKSELEN)" if a.get("trend") else "") for a in temiz[:15])
+        istek.append(f"{i}. niş={sl['nis']} ({n['ad']}, kitle: {n['hedef_kitle']}). Aday konular: {adaylar}. {stil}")
+    istek.append("\nAynı hafta içinde aynı konuyu iki kez seçme. YÜKSELEN işaretli konular yeni trendlerdir; öncelik ver.")
     if yayinlanan:
-        istek.append("Daha önce yayınlananlar (tekrar etme): " + " | ".join(yayinlanan))
+        istek.append("Daha önce yayınlananlar (tekrar etme): " + " | ".join(yayinlanan[-60:]))
 
     def sahte() -> dict:
         return {"videolar": [
-            {"nis": k, "konu": nis_analizi[k][0]["konu"], "anahtar_kelime": nis_analizi[k][0]["konu"],
-             "aci": "Deneme açısı", "hedef_kitle": ayar.nis(k)["hedef_kitle"],
-             "basliklar": [f"{nis_analizi[k][0]['konu'].title()} {i}" for i in range(3)]}
-            for k in [o["nis"] for o in oncelik] + dagilim]}
+            {"nis": sl["nis"], "konu": nis_analizi[sl["nis"]][i % len(nis_analizi[sl["nis"]])]["konu"],
+             "anahtar_kelime": nis_analizi[sl["nis"]][0]["konu"], "aci": "Deneme açısı",
+             "hedef_kitle": ayar.nis(sl["nis"])["hedef_kitle"], "basliklar": [f"Deneme başlık {i}-{j}" for j in range(3)]}
+            for i, sl in enumerate(slotlar)]}
 
     cevap = llm.json_uret(ayar, f"plan-{yil}-H{hafta}", SISTEM, "\n".join(istek), PLAN_SEMASI, sahte,
                           max_tokens=8000)
-    gecerli = {n["kod"] for n in ayar.nisler}
     plan = []
-    for i, v in enumerate(cevap["videolar"][:adet]):
-        if v["nis"] not in gecerli:
-            v["nis"] = (dagilim or [o["nis"] for o in oncelik])[0]
+    for i, (v, sl) in enumerate(zip(cevap["videolar"], slotlar)):
+        v["nis"] = sl["nis"]          # niş, modelin değil Thompson'ın kararıdır
+        v["deney"] = sl["deney"]
         v["kod"] = f"{yil}h{hafta:02d}-{i + 1}-{kisa_ad(v['konu'], 40)}"
         v["basliklar"] = [b[:100] for b in v["basliklar"]][:3] or [v["konu"]]
         plan.append(v)
@@ -108,13 +125,14 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
     if oncelik:  # kullanılan öncelikli konuları kuyruktan çıkar
         json_yaz(VERI / "oncelikli_konular.json", oncelikli[len(oncelik):])
     _takvim_yaz(ayar)
-    log.info("Plan: %d video", len(plan))
+    log.info("Plan: %d video (deneyler: %s)", len(plan), [v["deney"] for v in plan])
     return plan
 
 
 def _takvim_yaz(ayar: Ayarlar) -> None:
-    satir = ["# İçerik Takvimi", "", "| Hafta | Niş | Konu | Başlık seçenekleri |", "|---|---|---|---|"]
+    satir = ["# İçerik Takvimi", "", "| Hafta | Niş | Konu | Deney | Başlık seçenekleri |", "|---|---|---|---|---|"]
     for dosya in sorted((VERI / "plan").glob("*.json"))[-4:]:
         for v in json_oku(dosya, []):
-            satir.append(f"| {dosya.stem} | {v['nis']} | {v['konu']} | {' / '.join(v['basliklar'])} |")
+            deney = ", ".join(f"{k}={d}" for k, d in (v.get("deney") or {}).items())
+            satir.append(f"| {dosya.stem} | {v['nis']} | {v['konu']} | {deney} | {' / '.join(v['basliklar'])} |")
     (VERI / "icerik_takvimi.md").write_text("\n".join(satir) + "\n", encoding="utf-8")

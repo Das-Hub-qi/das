@@ -91,7 +91,11 @@ VARSAYILAN: dict[str, Any] = {
     "video": {"genislik": 1920, "yukseklik": 1080, "fps": 24, "ken_burns": True, "crf": 23,
               "intro_saniye": 0, "outro_saniye": 5},
     "butce": {"github_dakika_limiti": 2000},
-    "laboratuvar": {"kesif_orani": 0.2, "viral_esik": 10000, "min_veri_gunu": 7},
+    "laboratuvar": {"viral_esik": 10000, "min_veri_gunu": 7},
+    "optimizasyon": {"yari_omur_gun": 45, "benzerlik_esigi": 0.6,
+                     "deneyler": {"baslik_stili": ["soru", "sayili_liste", "nasil", "carpici_gercek"],
+                                  "hedef_kelime": [800, 1100, 1400],
+                                  "yayin_saati": ["12:00", "18:00", "20:30"]}},
     "cloudflare": {"web_analytics_token": "", "adsense_yayinci_id": ""},
     "teklifler": {"otomatik_yanit": False},
 }

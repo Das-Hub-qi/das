@@ -61,9 +61,20 @@ butce:
 
 # --- Laboratuvar (test & optimizasyon) -------------------------------------
 laboratuvar:
-  kesif_orani: 0.2           # üretimin %20'si yeni nişleri denemeye ayrılır
   viral_esik: 10000          # bu görüntülenmeyi geçen video için devam videosu planlanır
   min_veri_gunu: 7           # bir videoyu değerlendirmeden önce beklenen gün
+
+# --- Dinamik optimizasyon (Thompson örneklemesi) -----------------------------
+# Sistem her video için aşağıdaki seçeneklerden birini dener ve sonuçlara göre öğrenir.
+# Başta hepsini eşit dener; hangisi daha iyi giderse ona yoğunlaşır, ama keşfi asla tamamen bırakmaz.
+# Seçenek eklemek/çıkarmak serbesttir. Öğrenilenler DURUM.md'de "Laboratuvar öğrenimi" bölümünde.
+optimizasyon:
+  yari_omur_gun: 45          # eski videoların etkisi 45 günde yarıya iner (izleyici zevki değişebilir)
+  benzerlik_esigi: 0.6       # yayınlanmış bir konuya bu oranda benzeyen konu tekrar seçilmez
+  deneyler:
+    baslik_stili: ["soru", "sayili_liste", "nasil", "carpici_gercek"]
+    hedef_kelime: [800, 1100, 1400]          # video uzunluğu (~5, ~7, ~9 dk)
+    yayin_saati: ["12:00", "18:00", "20:30"] # yalnızca gizlilik "zamanla" iken denenir
 
 # --- Cloudflare (ücretsiz siteler, teklif formu, link takibi) --------------
 cloudflare:

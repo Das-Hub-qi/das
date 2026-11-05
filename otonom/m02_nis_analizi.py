@@ -4,6 +4,7 @@
   * YouTube otomatik tamamlama önerileri (anahtarsız): insanların gerçekten ne aradığını gösterir.
   * YouTube Data API (ücretsiz kota, isteğe bağlı): ilk sıradaki videoların izlenmesi ve
     kanal büyüklüğü -> rekabet. Küçük kanalların çok izlendiği konular = fırsat.
+  * Trend momentumu: geçen haftaya göre yeni çıkan veya talebi artan aramalar bonus alır.
 Uydurma "arama hacmi" sayısı üretilmez; tüm puanlar ölçülen sinyallerden gelir.
 """
 from __future__ import annotations
@@ -15,7 +16,8 @@ from collections import defaultdict
 
 import requests
 
-from .ayarlar import VERI, Ayarlar, gizli, json_yaz, kisa_ad, log
+from .ayarlar import VERI, Ayarlar, gizli, json_oku, json_yaz, kisa_ad, log
+from .optimizasyon import trend_bonusu
 
 EKLER = ["", " nasıl", " nedir", " için", " neden", " en iyi"]
 ONERI_URL = "https://suggestqueries.google.com/complete/search"
@@ -96,21 +98,30 @@ def _sahte(nis: dict) -> dict[str, float]:
 
 def calistir(ayar: Ayarlar, konu_basina_rekabet: int = 5) -> dict[str, list[dict]]:
     anahtar = "" if ayar.deneme else gizli("YOUTUBE_API_KEY")
+    gecmis = json_oku(VERI / "oneri_gecmisi.json", {})
+    yeni_gecmis: dict[str, dict[str, float]] = {}
     sonuc: dict[str, list[dict]] = {}
     for nis in ayar.nisler:
         ham = _sahte(nis) if ayar.deneme else talep_puanlari(nis["tohum_kelimeler"])
         if not ham:
             continue
         en_yuksek = max(ham.values())
-        adaylar = sorted(ham.items(), key=lambda x: -x[1])[:20]
+        talep = {k: round(v / en_yuksek, 3) for k, v in ham.items()}
+        bonus = trend_bonusu(talep, gecmis.get(nis["kod"], {}))   # yeni çıkan / yükselen aramalar
+        yeni_gecmis[nis["kod"]] = talep
+        adaylar = sorted(talep.items(), key=lambda x: -(x[1] + bonus.get(x[0], 0)))[:20]
         liste = []
-        for sira, (konu, p) in enumerate(adaylar):
+        for sira, (konu, t) in enumerate(adaylar):
             rek = _rekabet(konu, anahtar) if (anahtar and sira < konu_basina_rekabet) else {}
-            firsat, etiket = firsat_puani(p / en_yuksek, rek)
-            liste.append({"konu": konu, "talep": round(p / en_yuksek, 3), "rekabet": etiket,
-                          "firsat": firsat, **rek})
+            firsat, etiket = firsat_puani(t, rek)
+            b = bonus.get(konu, 0.0)
+            liste.append({"konu": konu, "talep": t, "rekabet": etiket, "firsat": round(firsat + b, 3),
+                          "trend": "yeni" if b == 0.15 and konu not in gecmis.get(nis["kod"], {}) else
+                                   ("yükselen" if b > 0 else ""), **rek})
         liste.sort(key=lambda x: -x["firsat"])
         sonuc[nis["kod"]] = liste
-        log.info("Niş %s: %d aday konu", nis["kod"], len(liste))
+        log.info("Niş %s: %d aday konu, %d trend", nis["kod"], len(liste), sum(1 for x in liste if x["trend"]))
     json_yaz(VERI / "nis_analizi.json", sonuc)
+    if yeni_gecmis:
+        json_yaz(VERI / "oneri_gecmisi.json", yeni_gecmis)
     return sonuc

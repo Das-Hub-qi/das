@@ -3,13 +3,13 @@
 Orijinal formül (Görüntülenme×0.5 + CTR×0.3 + Süre×0.2) farklı ölçekleri topladığı için
 izlenme sayısı her şeyi ezer. Burada her metrik önce kanal içi YÜZDELİK SIRAYA
 çevrilir (0-100), sonra ağırlıklandırılır; Shorts ve uzun videolar ayrı karşılaştırılır.
-Sonuç, nişlerin üretim payını belirler (Modül 3) -> sistem kendi kendini iyileştirir.
+Sonuçlar Thompson örneklemesine (optimizasyon.py) gözlem olarak verilir: niş, başlık stili,
+video uzunluğu ve yayın saati seçimleri buna göre her hafta yeniden yapılır.
 Veriler Google Sheets yerine git'teki CSV'de tutulur (ek hesap/izin gerekmez).
 """
 from __future__ import annotations
 
 import statistics
-from collections import defaultdict
 from datetime import date, datetime
 
 import requests
@@ -76,10 +76,13 @@ def yuzdelik(degerler: list[float]) -> list[float]:
 
 
 def puanla(videolar: list[dict]) -> list[dict]:
-    """Aynı türdeki (uzun/shorts) videolar arasında 0-100 performans puanı."""
+    """Aynı türdeki (uzun/shorts) videolar arasında 0-100 performans puanı.
+    İzlenme bileşeni yaşa göre düzeltilmiştir (kanalın izlenme-yaş eğrisinden sapma)."""
+    from .optimizasyon import yas_duzeltilmis
+
     for tur in {v["tur"] for v in videolar}:
         grup = [v for v in videolar if v["tur"] == tur]
-        hiz = yuzdelik([v["goruntulenme"] / max(1, v["yas_gun"]) for v in grup])
+        hiz = yuzdelik(yas_duzeltilmis(grup))
         tutma = yuzdelik([float(v.get("ort_izlenme_yuzde") or 0) for v in grup])
         etk = yuzdelik([(v["begeni"] + 2 * v["yorum"]) / max(1, v["goruntulenme"]) for v in grup])
         tutma_var = any(v.get("ort_izlenme_yuzde") for v in grup)
@@ -88,18 +91,18 @@ def puanla(videolar: list[dict]) -> list[dict]:
     return videolar
 
 
-def nis_agirliklari(videolar: list[dict], nis_kodlari: list[str]) -> dict[str, float]:
-    """Ortalama puanı yüksek nişe daha fazla üretim payı; veri azsa ağırlık 1'e yakın kalır."""
-    grup = defaultdict(list)
-    for v in videolar:
-        grup[v["nis"]].append(v["skor"])
-    agirlik = {}
-    for k in nis_kodlari:
-        p = grup.get(k, [])
-        guven = min(1.0, len(p) / 6)              # 6 videodan sonra tam güven
-        ort = statistics.mean(p) if p else 50.0
-        agirlik[k] = round((1 - guven) * 1.0 + guven * (0.25 + 1.5 * ort / 100), 3)
-    return agirlik
+def ogrenim(ayar: Ayarlar, olgun: list[dict], bugun: date) -> dict:
+    """Thompson gözlemlerini ve her seçeneğin 'en iyi olma' olasılığını veri/optimizasyon.json'a yazar."""
+    from . import m04_senaryo, optimizasyon as opt
+
+    gozlem = opt.gozlemleri_topla(olgun, m04_senaryo.yukle)
+    yo = float(ayar["optimizasyon"]["yari_omur_gun"])
+    deneyler = {"nis": [n["kod"] for n in ayar.nisler], **ayar["optimizasyon"]["deneyler"]}
+    olasilik = {ad: opt.kazanma_olasiligi(opt.posterior(opt.yasli(gozlem.get(ad, []), bugun), kollar, yo))
+                for ad, kollar in deneyler.items() if kollar}
+    veri = {"guncelleme": bugun.isoformat(), "gozlemler": gozlem, "olasiliklar": olasilik}
+    json_yaz(VERI / "optimizasyon.json", veri)
+    return veri
 
 
 def ortak_ozellikler(videolar: list[dict]) -> list[str]:
@@ -225,8 +228,7 @@ def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
     if not (tam_rapor and olgun):
         return {"videolar": videolar}
     puanla(olgun)
-    agirlik = nis_agirliklari(olgun, [n["kod"] for n in ayar.nisler])
-    json_yaz(VERI / "nis_agirliklari.json", agirlik)
+    ogren = ogrenim(ayar, olgun, bugun)
 
     sirali = sorted(olgun, key=lambda v: -v["skor"])
     zayif = [v for v in sirali if v["yas_gun"] >= 28][-max(1, len(sirali) // 5):] if len(sirali) >= 5 else []
@@ -235,7 +237,9 @@ def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
     md += [f"| [{v['baslik'][:50]}](https://youtu.be/{v['youtube_id']}) | {v['tur']} | {v['nis']} | "
            f"{v['goruntulenme']} | {v.get('ort_izlenme_yuzde') or '-'} | {v['skor']} |" for v in sirali[:25]]
     md += ["", "## En başarılı videoların ortak özellikleri", *[f"- {b}" for b in ortak_ozellikler(olgun)],
-           "", "## Niş üretim payları (gelecek hafta)", *[f"- {k}: {w}" for k, w in agirlik.items()]]
+           "", "## Laboratuvar öğrenimi (her seçeneğin en iyi olma olasılığı)",
+           *[f"- **{ad}**: " + ", ".join(f"{k} %{100 * p:.0f}" for k, p in sorted(o.items(), key=lambda x: -x[1]))
+             for ad, o in ogren["olasiliklar"].items()]]
     if zayif:
         md += ["", "## Yeniden düzenlenecekler (başlık + küçük resim değiştirin; silmeyin, izlenme saatini korur)",
                *[f"- {v['baslik']} — puan {v['skor']}" for v in zayif]]
@@ -247,4 +251,4 @@ def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
     (VERI / "raporlar").mkdir(exist_ok=True)
     (VERI / "raporlar" / f"lab-{bugun}.md").write_text(rapor, encoding="utf-8")
     ozet_yaz(rapor)
-    return {"videolar": videolar, "agirlik": agirlik}
+    return {"videolar": videolar, "ogrenim": ogren}

@@ -100,6 +100,21 @@ def olustur(ayar: Ayarlar, komut: str, hatalar: list[str]) -> str:
            f"- Ortaklık link tıklamaları: **{tik}**",
            "- Ayrıntılı raporlar: `veri/raporlar/`"]
 
+    ogren = json_oku(VERI / "optimizasyon.json", {})
+    adlar = {"nis": "Niş", "baslik_stili": "Başlık stili", "hedef_kelime": "Video uzunluğu (kelime)",
+             "yayin_saati": "Yayın saati"}
+    md += ["", "## Laboratuvar öğrenimi",
+           "Her seçeneğin şu an 'en iyi' olma olasılığı (Thompson örneklemesi). Veri arttıkça netleşir; "
+           "sistem yüksek olasılıklı seçeneği daha sık, diğerlerini ara sıra dener."]
+    if ogren.get("olasiliklar"):
+        for ad, o in ogren["olasiliklar"].items():
+            sirali = sorted(o.items(), key=lambda x: -x[1])
+            md.append(f"- **{adlar.get(ad, ad)}**: " + " · ".join(f"{k} %{100 * p:.0f}" for k, p in sirali))
+        md.append(f"- _Son güncelleme: {ogren.get('guncelleme')} · değerlendirilen video: "
+                  f"{len(ogren.get('gozlemler', {}).get('nis', []))}_")
+    else:
+        md.append("- Henüz yeterli veri yok (videolar yayınlanıp en az 7 gün geçince öğrenme başlar).")
+
     uyarilar = json_oku(VERI / "uyarilar.json", [])[-8:]
     if hatalar or uyarilar:
         md += ["", "## Son uyarılar"]

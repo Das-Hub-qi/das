@@ -133,7 +133,7 @@ def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
     kapak = Path(foto["dosya"]) if foto else gorsel.yazi_karti(
         "", klasor / "kapak_arka.jpg", 1280, 720, gorsel.renk(icerik["plan"]["nis"]))
     meta = m08_thumbnail_metadata.olustur(ayar, kod, icerik, sonuc["bolumler"], materyal, kapak)
-    yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "uzun")
+    yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "uzun", (icerik["plan"].get("deney") or {}).get("yayin_saati"))
     vid = m09_youtube_yukleme.yukle(ayar, sonuc["video"], meta["baslik"], meta["aciklama"], meta["etiketler"],
                                     yayin, Path(meta["thumbnail"]),
                                     srt if ayar["youtube"]["altyazi_yukle"] else None)

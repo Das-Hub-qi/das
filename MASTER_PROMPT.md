@@ -34,8 +34,9 @@ başlık + 2 alternatif + küçük resim yazısı + açıklama + etiketler + bö
 M1 Envanter: alan adları (DNS, HTTP, RDAP bitiş tarihi, şeffaf değer puanı), kanal istatistiği → tablo.
 M2 Niş analizi: YouTube otomatik tamamlama önerileri = talep; ilk 10 sonucun izlenme/kanal büyüklüğü = rekabet.
    Fırsat = 0,5×talep + 0,3×(1−rekabet) + 0,2×(küçük kanal başarı oranı). Uydurma arama hacmi YASAK.
-M3 Plan: haftalık; videolar nişlere laboratuvar ağırlıklarıyla dağıtılır (%20 keşif payı);
-   viral devam videoları önceliklidir; daha önce yayınlanan başlıklar tekrarlanmaz.
+M3 Plan: haftalık; niş, başlık stili, video uzunluğu ve yayın saati Thompson örneklemesiyle seçilir
+   (Beta dağılımları, 45 gün yarı ömürlü zaman aşınması); viral devam videoları önceliklidir;
+   yayınlanmışa Jaccard benzerliği ≥0,6 olan konular elenir; yükselen trendler öne alınır.
 M4 Senaryo: kanca ile başla (boş intro yok), 3-5 bölüm, ortada izlenme kancası, sonda tek net çağrı.
    TTS'e uygun yaz (kısaltma/emoji/URL yok). Uydurma istatistik yok. Sağlıkta teşhis/tedavi vaadi yok.
 M5 Seslendirme: sahne başına ses + kelime zamanlaması → altyazı (SRT).
@@ -47,7 +48,8 @@ M9 Yükleme: kota hesabı yap (yükleme 1.600 birim), sığmayanı ertesi güne 
    API denetimi yoksa "gizli" yükle ve insana onaylat.
 M10 Alan adları: pitch, TR/EN ilan, alıcı e-posta şablonu, teklif yanıt şablonu, alıcı bulma rehberi (bir kez üret).
    Fiyat uydurma: belirtilmemişse "teklife açık".
-M11 Laboratuvar: metrikleri kanal içi yüzdelik sıraya çevir; puan = 0,4×günlük izlenme hızı + 0,4×izlenme yüzdesi
+M11 Laboratuvar: metrikleri kanal içi yüzdelik sıraya çevir; puan = 0,4×yaşa göre düzeltilmiş izlenme
+   (log-log izlenme-yaş eğrisinden sapma) + 0,4×izlenme yüzdesi
    + 0,2×etkileşim (uzun ve Shorts ayrı). En iyi 3'ün ortak özelliklerini çıkar. Zayıfları SİLME:
    A/B testi — alternatif başlığı otomatik dene, 7 gün sonra izlenme hızı düşerse eskiye dön.
    Viral eşik (10.000) aşılırsa devam videosu planla.

@@ -33,14 +33,18 @@ def yayin_zamanlari(baslangic: datetime, gunler: list[str], saat: str, adet: int
     return sonuc
 
 
-def sonraki_yayin(ayar: Ayarlar, tur: str) -> datetime | None:
+def sonraki_yayin(ayar: Ayarlar, tur: str, saat: str | None = None) -> datetime | None:
     if ayar["youtube"]["gizlilik"] != "zamanla":
         return None
     onceki = [datetime.fromisoformat(s["yayin_zamani"]) for s in csv_oku(VERI / "yayinlananlar.csv")
               if s["tur"] == tur and s.get("yayin_zamani")]
     baslangic = max([ayar.simdi, *onceki])
     if tur == "uzun":
-        return yayin_zamanlari(baslangic, ayar["youtube"]["yayin_gunleri"], ayar["youtube"]["yayin_saati"], 1)[0]
+        gun = yayin_zamanlari(baslangic, ayar["youtube"]["yayin_gunleri"], ayar["youtube"]["yayin_saati"], 1)[0]
+        if saat:  # laboratuvarın denediği yayın saati (aynı gün, farklı saat)
+            s, d = (int(x) for x in saat.split(":"))
+            gun = gun.replace(hour=s, minute=d)
+        return gun
     return yayin_zamanlari(baslangic, list(GUNLER), "12:00", 1)[0]
 
 
