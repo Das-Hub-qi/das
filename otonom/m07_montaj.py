@@ -156,22 +156,22 @@ def sahne_klibi(ayar: Ayarlar, resim: Path, saniye: float, cikti: Path, hareket:
 # --------------------------------------------------------------- birleştirme
 
 def _katmanlar(ayar: Ayarlar, girdi_no: int, akan: str, ofset: float, toplam: float, sure_: float,
-               klasor: Path, abone_an: float | None) -> tuple[list[str], list[str], str]:
+               klasor: Path, abone_an: float | None, dikey: bool = False) -> tuple[list[str], list[str], str]:
     """Logo filigranı, ilerleme çubuğu, abone rozeti. Döner: (ek girdiler, filtreler, son etiket)."""
-    g, y, fps = boyut(ayar)
+    g, y, fps = boyut(ayar, dikey)
     v = ayar["video"]
     girdiler, suz = [], []
-    kenar = max(10, g // 60)
+    kenar = max(10, min(g, y) // 36)
     logo = logo_yolu(ayar)
     if logo:
         girdiler += ["-loop", "1", "-framerate", str(fps), "-t", f"{sure_:.3f}", "-i", str(logo)]
-        suz += [f"[{girdi_no}:v]scale=-1:{max(24, y // 11)},format=rgba,colorchannelmixer=aa=0.7[lg]",
+        suz += [f"[{girdi_no}:v]scale=-1:{max(24, min(g, y) // (14 if dikey else 11))},format=rgba,colorchannelmixer=aa=0.7[lg]",
                 f"[{akan}][lg]overlay=W-w-{kenar}:{kenar}[k1]"]
         akan, girdi_no = "k1", girdi_no + 1
     if v.get("ilerleme_cubugu"):
         cubuk = max(3, y // 200)
         girdiler += ["-f", "lavfi", "-t", f"{sure_:.3f}", "-i", f"color=c=0xE50914:s={g}x{cubuk}:r={fps}"]
-        suz.append(f"[{akan}][{girdi_no}:v]overlay=x='-w+W*(t+{ofset:.3f})/{toplam:.3f}':y=H-h:eval=frame[k2]")
+        suz.append(f"[{akan}][{girdi_no}:v]overlay=x='-w+W*(t+{ofset:.3f})/{toplam:.3f}':y={'0' if dikey else 'H-h'}:eval=frame[k2]")
         akan, girdi_no = "k2", girdi_no + 1
     if abone_an is not None and ofset <= abone_an < ofset + sure_ - 4:
         a = abone_an - ofset
@@ -222,7 +222,7 @@ def anlatim_izi(parcalar: list[tuple[Path | None, float]], cikti: Path) -> Path:
 
 
 def ses_karistir(ayar: Ayarlar, video: Path, anlatim: Path, cikti: Path, anahtar: str, gecis_anlari: list[float],
-                 ruh_hali: str | None = None) -> Path:
+                 ruh_hali: str | None = None, ritim: bool = False, muzik_ek_db: float = 0.0) -> Path:
     """Anlatım + fon müziği (konuşmada kısılır) + geçiş sesleri → -14 LUFS; görüntü yeniden kodlanmaz."""
     s = ayar["ses"]
     toplam = sure(video)
@@ -232,6 +232,8 @@ def ses_karistir(ayar: Ayarlar, video: Path, anlatim: Path, cikti: Path, anahtar
     muzik = bool(muzikler) or bool(s.get("fon_muzigi"))
     if muzikler:
         girdiler += ["-stream_loop", "-1", "-i", str(muzikler[tohum % len(muzikler)])]
+    elif muzik and ritim:  # Shorts: vuruşlu, enerjik
+        girdiler += ["-i", str(ses_tasarimi.ritim_muzigi(cikti.parent / "ritim.wav", toplam, tohum)[0])]
     elif muzik:
         fon = ses_tasarimi.fon_muzigi(cikti.parent / "fon.wav", toplam, tohum, ruh_hali or s.get("ruh_hali", "merakli"))
         girdiler += ["-i", str(fon)]
@@ -239,7 +241,8 @@ def ses_karistir(ayar: Ayarlar, video: Path, anlatim: Path, cikti: Path, anahtar
     if efekt:
         girdiler += ["-i", str(ses_tasarimi.efekt_izi(cikti.parent / "efekt.wav", toplam, gecis_anlari, tohum))]
     vno = 1 + muzik + efekt
-    grafik = ses_tasarimi.karisim_suzgeci(float(s["muzik_seviyesi_db"]) + 4, float(s.get("efekt_seviyesi_db", -16)),
+    grafik = ses_tasarimi.karisim_suzgeci(float(s["muzik_seviyesi_db"]) + 4 + muzik_ek_db,
+                                          float(s.get("efekt_seviyesi_db", -16)),
                                           muzik, efekt)
     _ffmpeg(*girdiler, "-i", str(video), "-filter_complex", grafik, "-map", f"{vno}:v", "-map", "[a]",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-t", f"{toplam:.3f}",
@@ -352,59 +355,157 @@ def _kapanis_logosu(ayar: Ayarlar, klip: Path, saniye: float) -> Path:
 
 # -------------------------------------------------------------------- Shorts
 
-def shorts_video(ayar: Ayarlar, kod: str, sira: int, baslik: str, ses: dict, arka: Path) -> Path:
-    """Dikey Shorts: hareketli arka plan + kelime kelime vurgulanan altyazı + başlık + logo + ses tasarımı."""
+def shorts_parcala(metin: str, gorsel_arama: str) -> list[dict]:
+    """Eski tip Shorts metnini (tek parça) kısa cümlelere böler: her cümleye ayrı görsel/kesme."""
+    import re
+    parcalar = []
+    for cumle in re.split(r"(?<=[.!?…])\s+", metin.strip()):
+        kelime = cumle.split()
+        while len(kelime) > 14:  # uzun cümle: virgülden ya da ortadan böl
+            virgul = next((i + 1 for i in range(5, len(kelime) - 4) if kelime[i].endswith(",")), len(kelime) // 2)
+            parcalar.append(" ".join(kelime[:virgul]))
+            kelime = kelime[virgul:]
+        if kelime:
+            parcalar.append(" ".join(kelime))
+    return [{"metin": p, "gorsel_arama": gorsel_arama} for p in parcalar if p]
+
+
+def _kisa_gruplar(kelimeler: list[tuple[float, float, str]], bitisler: set[int] | None = None) -> list[list[int]]:
+    """Altyazı için 1-3 kelimelik kısa gruplar: cümle/virgül sonunda, duraklamada ve uzunlukta bölünür.
+    bitisler: grubun mutlaka biteceği kelime sıraları (cümle sonu; seslendirme noktalamayı vermez)."""
+    bitisler = bitisler or set()
+    gruplar_, grup, harf = [], [], 0
+    for i, (b, _s, k) in enumerate(kelimeler):
+        if grup and (len(grup) >= 3 or harf + len(k) > 16 or b - kelimeler[i - 1][1] > 0.25):
+            gruplar_.append(grup)
+            grup, harf = [], 0
+        grup.append(i)
+        harf += len(k) + 1
+        if k[-1:] in ".,!?…:;" or i in bitisler:
+            gruplar_.append(grup)
+            grup, harf = [], 0
+    if grup:
+        gruplar_.append(grup)
+    return gruplar_
+
+
+def _sira_dosyasi(yol: Path, kareler: list[tuple[Path, float]]) -> Path:
+    satir = [f"file '{p.resolve()}'\nduration {d:.3f}\n" for p, d in kareler]
+    satir.append(f"file '{kareler[-1][0].resolve()}'\n")
+    yol.write_text("".join(satir), encoding="utf-8")
+    return yol
+
+
+def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict], gorseller: list[Path]) -> Path:
+    """Dikey Shorts (izleyiciyi tutmak için): her cümlede yeni görsel ve 1,5-3 sn'de bir kesme (vuruş yakınlaşması,
+    ara sıra beyaz flaş), iri BÜYÜK HARF altyazı (kelime kelime renk + zıplama), üstte sürekli başlık kutusu,
+    sonda TAKİP ET, vuruşlu müzik (konuşmada kısılır), kesmelerde whoosh. sesler/gorseller: her parça için."""
     g, y, fps = boyut(ayar, dikey=True)
+    fps = fps if ayar.deneme else 30
     klasor = CIKTI / kod / f"shorts_{sira}"
     klasor.mkdir(parents=True, exist_ok=True)
-    toplam = ses["sure"] + 0.3
-    hiz = max(1.0, min(1.25, toplam / 58.0))  # Shorts 60 sn altında kalsın
-    sure_ = toplam / hiz
+    rng = random.Random(f"{kod}-{sira}")
+    ARA = 0.08  # cümleler arası çok kısa nefes: tempo yüksek kalsın
 
-    # Altyazı katmanları: her kelime anı için bir kare (o an söylenen kelime sarı)
-    kelimeler = ses["kelimeler"]
-    satirlar = gruplar(kelimeler, en_fazla=3)
-    bos = gorsel.seffaf_altyazi([], -1, klasor / "bos.png", g, y)
-    parcalar: list[tuple[Path, float]] = []
+    # 1) Sıkı anlatım: her parçanın baş/son sessizliği kırpılır; kelimeler küresel zamana taşınır
+    metinler = [p["metin"] for p in (sh.get("parcalar") or shorts_parcala(sh.get("metin", ""), ""))]
+    kelimeler, kesitler, bitisler, t = [], [], set(), 0.0
+    girdiler, suz = [], []
+    for k, ses in enumerate(sesler):
+        kel = ses["kelimeler"] or [(0.0, ses["sure"], "")]
+        a, b = max(0.0, kel[0][0] - 0.04), min(ses["sure"], kel[-1][1] + 0.12)
+        uzunluk = (b - a) + ARA
+        yeni = [(kb - a + t, ks - a + t, w) for kb, ks, w in kel if w]
+        asil = metinler[k].split() if k < len(metinler) else []
+        if len(asil) == len(yeni):  # seslendirme noktalamayı atar: virgülleri asıl metinden al
+            bitisler |= {len(kelimeler) + i for i, w in enumerate(asil) if w[-1:] in ",;:"}
+        kelimeler += yeni
+        if kelimeler:
+            bitisler.add(len(kelimeler) - 1)  # cümle sonu
+        kesitler.append((t, uzunluk))
+        girdiler += ["-i", str(ses["ses"])]
+        suz.append(f"[{k}:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,aresample=48000,"
+                   f"aformat=channel_layouts=stereo,apad=pad_dur={ARA}[a{k}]")
+        t += uzunluk
+    toplam = t + 0.25
+    anlatim = klasor / "anlatim.wav"
+    suz.append("".join(f"[a{k}]" for k in range(len(sesler))) + f"concat=n={len(sesler)}:v=0:a=1[o]")
+    _ffmpeg(*girdiler, "-filter_complex", ";".join(suz), "-map", "[o]", "-c:a", "pcm_s16le", str(anlatim))
+
+    # 2) Çekimler: uzun parça ikiye bölünür (aynı görsel, farklı kadraj) → 1,5-3 sn'de bir kesme
+    cekimler = []
+    for k, (bas, uzunluk) in enumerate(kesitler):
+        if k == len(kesitler) - 1:
+            uzunluk = toplam - bas
+        parca = [uzunluk] if uzunluk <= 3.2 else [uzunluk / 2, uzunluk / 2]
+        for j, d in enumerate(parca):
+            cekimler.append({"resim": gorseller[k % len(gorseller)], "sure": d, "yakin": j == 1})
+    klipler, kesmeler, an = [], [], 0.0
+    for c_no, c in enumerate(cekimler):
+        kare = max(1, math.ceil(c["sure"] * fps))
+        yon = rng.choice([-1, 1])
+        e = f"(1-cos(PI*on/{kare}))/2"
+        tepe = 1.18 if c_no else 1.08
+        z = f"{1.12 if c['yakin'] else 1.0}+0.10*{e}+{tepe - 1:.2f}*exp(-on/{max(1, int(fps * 0.12))})"
+        x = f"(iw-iw/zoom)*(0.5+{0.3 * yon}*{e})"
+        flas = c_no > 0 and c_no % 3 == 0
+        vf = (f"scale={2 * g}:{2 * y}:force_original_aspect_ratio=increase,crop={2 * g}:{2 * y},"
+              f"zoompan=z='{z}':x='{x}':y='ih/2-(ih/zoom/2)':d={kare}:s={g}x{y}:fps={fps},"
+              f"eq=contrast=1.08:saturation=1.25:brightness=-0.03,vignette=PI/5"
+              + (",fade=t=in:st=0:d=0.12:color=white" if flas else "") + ",format=yuv420p")
+        klipler.append(klasor / f"c{c_no:02d}.mp4")
+        _ffmpeg("-i", str(c["resim"]), "-vf", vf, "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an",
+                *_kodlama(ayar, ara=True), str(klipler[-1]))
+        if c_no:
+            kesmeler.append(an)
+        an += c["sure"]
+    taban = klasor / "taban.mp4"
+    _kopyala_birlestir(klipler, taban)
+
+    # 3) Altyazı kareleri: grup başında zıplama (0.82 → 1.08 → 1), o an söylenen kelime renkli
+    bos = gorsel.shorts_altyazi([], -1, klasor / "bos.png", g, y)
+    kareler: list[tuple[Path, float]] = []
     an, n = 0.0, 0
-    for i, (bas, son, _metin) in enumerate(satirlar):
-        grup = [k for k in kelimeler if bas - 1e-6 <= k[0] < (satirlar[i + 1][0] if i + 1 < len(satirlar) else 1e9)]
-        sozler = [k[2] for k in grup]
-        for j, (kb, _ks, _k) in enumerate(grup):
-            if kb > an + 0.03:
-                parcalar.append((bos if j == 0 else parcalar[-1][0], kb - an))
-                an = kb
-            bitis = grup[j + 1][0] if j + 1 < len(grup) else (satirlar[i + 1][0] if i + 1 < len(satirlar) else toplam)
-            kare = gorsel.seffaf_altyazi(sozler, j, klasor / f"a{n:04d}.png", g, y)
+    for gi, grup in enumerate(_kisa_gruplar(kelimeler, bitisler)):
+        sozler = [kelimeler[i][2] for i in grup]
+        bas = kelimeler[grup[0]][0]
+        if bas > an + 0.02:
+            kareler.append((kareler[-1][0] if kareler and bas - an < 0.5 else bos, bas - an))
+            an = bas
+        for j, i in enumerate(grup):
+            bitis = kelimeler[i + 1][0] if i + 1 < len(kelimeler) else toplam
+            if j == 0:
+                for olcek, d in ((0.82, 0.05), (1.08, 0.05)):
+                    kareler.append((gorsel.shorts_altyazi(sozler, j, klasor / f"t{n:04d}.png", g, y, olcek), d))
+                    n += 1
+                    an += d
+            kareler.append((gorsel.shorts_altyazi(sozler, j, klasor / f"t{n:04d}.png", g, y), max(0.03, bitis - an)))
             n += 1
-            parcalar.append((kare, max(0.04, bitis - an)))
-            an = bitis
-    if not parcalar:
-        parcalar.append((bos, toplam))
-    liste = klasor / "altyazi.txt"
-    satir = [f"file '{p.resolve()}'\nduration {d / hiz:.3f}\n" for p, d in parcalar]
-    satir.append(f"file '{parcalar[-1][0].resolve()}'\n")
-    liste.write_text("".join(satir), encoding="utf-8")
-    ust = gorsel.seffaf_baslik(baslik, klasor / "baslik.png", g, y)
+            an = max(an, bitis)
+    altyazi = _sira_dosyasi(klasor / "altyazi.txt", kareler or [(bos, toplam)])
+    kanca = sh.get("kanca_yazi") or sh.get("baslik", "")
+    ust = _sira_dosyasi(klasor / "kanca.txt", [
+        (gorsel.kanca_kutusu(kanca, klasor / "k0.png", g, y, 0.85), 0.06),
+        (gorsel.kanca_kutusu(kanca, klasor / "k1.png", g, y, 1.06), 0.06),
+        (gorsel.kanca_kutusu(kanca, klasor / "k2.png", g, y), toplam)])
+    takip = gorsel.abone_rozeti(klasor / "takip.png", g, y, "TAKİP ET ▶", 1.5)
+    son = max(0.0, toplam - 2.4)
 
-    kare = max(1, math.ceil(sure_ * fps))
-    z, x, yy = hareket_ifadesi("darbe", kare, fps, 1.2)
-    girdiler = ["-i", str(arka), "-f", "concat", "-safe", "0", "-i", str(liste),
-                "-loop", "1", "-framerate", str(fps), "-t", f"{sure_:.3f}", "-i", str(ust)]
-    suz = [f"[0:v]scale={2 * g}:{2 * y}:force_original_aspect_ratio=increase,crop={2 * g}:{2 * y},"
-           f"zoompan=z='{z}':x='{x}':y='{yy}':d={kare}:s={g}x{y}:fps={fps},eq=brightness=-0.07:saturation=1.15,"
-           f"vignette=PI/4[bg]",
-           f"[1:v]fps={fps},format=rgba[alt]", "[bg][alt]overlay=0:0:eof_action=pass[v1]",
-           "[2:v]format=rgba[ust]", "[v1][ust]overlay=0:0[v2]"]
-    ek, katman, akan = _katmanlar(ayar, 3, "v2", 0.0, sure_, sure_, klasor, None)
+    girdiler = ["-i", str(taban), "-f", "concat", "-safe", "0", "-i", str(altyazi),
+                "-f", "concat", "-safe", "0", "-i", str(ust),
+                "-loop", "1", "-framerate", str(fps), "-t", f"{toplam:.3f}", "-i", str(takip)]
+    suz = [f"[1:v]fps={fps},format=rgba[alt]", f"[2:v]fps={fps},format=rgba[ust]",
+           "[0:v][alt]overlay=0:0:eof_action=pass[v1]", "[v1][ust]overlay=0:0:eof_action=pass[v2]",
+           f"[3:v]format=rgba,fade=t=in:st={son:.2f}:d=0.25:alpha=1[tk]",
+           f"[v2][tk]overlay=x=(W-w)/2:y='H*0.73+30*max(0,1-(t-{son:.2f})/0.25)':enable='gte(t,{son:.2f})'[v3]"]
+    ek, katman, akan = _katmanlar(ayar, 4, "v3", 0.0, toplam, toplam, klasor, None, dikey=True)
     video = klasor / "goruntu.mp4"
     _ffmpeg(*girdiler, *ek, "-filter_complex", ";".join(suz + katman + [f"[{akan}]format=yuv420p[son]"]),
-            "-map", "[son]", "-t", f"{sure_:.3f}", "-r", str(fps), "-an", *_kodlama(ayar), str(video))
+            "-map", "[son]", "-t", f"{toplam:.3f}", "-r", str(fps), "-an", *_kodlama(ayar), str(video))
 
-    anlatim = klasor / "anlatim.wav"
-    af = f"atempo={hiz:.3f},apad" if hiz > 1.0 else "apad"
-    _ffmpeg("-i", str(ses["ses"]), "-af", f"{af},atrim=0:{sure_:.3f}", "-ar", "48000", "-ac", "2", str(anlatim))
     cikti = CIKTI / kod / f"shorts_{sira}.mp4"
-    ses_karistir(ayar, video, anlatim, cikti, f"{kod}-s{sira}", [0.05], "enerjik")
-    log.info("Shorts hazır: %s", cikti)
+    ses_karistir(ayar, video, anlatim, cikti, f"{kod}-s{sira}", [0.02] + kesmeler[1::2], ritim=True, muzik_ek_db=5)
+    for gecici in [*klasor.glob("*.png"), *klasor.glob("c*.mp4"), taban, video]:
+        gecici.unlink(missing_ok=True)
+    log.info("Shorts hazır: %s (%.1f sn, %d kesme)", cikti, toplam, len(kesmeler))
     return cikti

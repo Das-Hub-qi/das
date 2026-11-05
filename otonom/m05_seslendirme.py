@@ -125,7 +125,7 @@ def _piper(metin: str, yol: Path, dil: str = "tr") -> list[tuple[float, float, s
     return sonuc
 
 
-def seslendir(ayar: Ayarlar, metin: str, yol: Path, sira: int = 1, toplam: int = 3) -> dict:
+def seslendir(ayar: Ayarlar, metin: str, yol: Path, sira: int = 1, toplam: int = 3, ek_hiz: int = 0) -> dict:
     """Döner: {"ses": yol, "sure": saniye, "kelimeler": [(baş, son, kelime), ...]}"""
     yol.parent.mkdir(parents=True, exist_ok=True)
     if ayar.deneme:
@@ -137,7 +137,8 @@ def seslendir(ayar: Ayarlar, metin: str, yol: Path, sira: int = 1, toplam: int =
     hata = None
     for deneme in range(3):
         try:
-            hiz, perde = (tonlama(sira, toplam, metin, ayar["ses"]["hiz"]) if ayar["ses"].get("tonlama")
+            temel = f"{int(str(ayar['ses']['hiz']).rstrip('%')) + ek_hiz:+d}%"
+            hiz, perde = (tonlama(sira, toplam, metin, temel) if ayar["ses"].get("tonlama")
                           else (ayar["ses"]["hiz"], "+0Hz"))
             kel = asyncio.run(_seslendir(metin, yol, ayar["ses"]["ses_adi"], hiz, perde))
             if kel and yol.stat().st_size > 1000:

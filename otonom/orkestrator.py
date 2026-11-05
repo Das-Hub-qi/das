@@ -153,16 +153,34 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     sh = icerik["shorts"][j]
     klasor = CIKTI / kod
     (klasor / "gorseller").mkdir(parents=True, exist_ok=True)
-    ses = m05_seslendirme.seslendir(ayar, sh["metin"], klasor / "ses" / f"shorts_{j}.mp3", 0, 1)
-    bilgi = m06_materyal.gorsel_bul(ayar, sh["gorsel_arama"], klasor / "gorseller" / f"shorts_{j}.jpg", set(),
-                                    icerik["plan"]["nis"], dikey=True, yedek_yazi="")  # başlık zaten üstte yazılı
-    video = m07_montaj.shorts_video(ayar, kod, j, sh["baslik"], ses, Path(bilgi["dosya"]))
+    parcalar = sh.get("parcalar") or m07_montaj.shorts_parcala(sh["metin"], sh["gorsel_arama"])
+    sesler = [m05_seslendirme.seslendir(ayar, p["metin"], klasor / "ses" / f"shorts_{j}_{k:02d}.mp3", k,
+                                        len(parcalar), ek_hiz=8) for k, p in enumerate(parcalar)]
+    kullanilan: set[str] = set()
+    bilgiler = []
+    yedekler = [p for p in sorted((klasor / "gorseller").glob("*.jpg")) if "shorts" not in p.name]
+    for k, p in enumerate(parcalar):
+        bilgi = m06_materyal.gorsel_bul(ayar, p["gorsel_arama"] or sh["gorsel_arama"],
+                                        klasor / "gorseller" / f"shorts_{j}_{k:02d}.jpg", kullanilan,
+                                        icerik["plan"]["nis"], dikey=True, yedek_yazi="")
+        bilgiler.append(bilgi)
+    # Yazılı kart Shorts'ta kötü görünür: en yakın gerçek görsel (farklı kadrajla) ya da uzun videonun görseli
+    iyiler = [b for b in bilgiler if b["kaynak"] != "Otomatik kart"]
+    for k, bilgi in enumerate(bilgiler):
+        if bilgi["kaynak"] == "Otomatik kart":
+            if yedekler:
+                bilgiler[k] = {**bilgi, "dosya": str(yedekler[(j * 7 + k) % len(yedekler)])}
+            elif iyiler:
+                bilgiler[k] = {**bilgi, "dosya": iyiler[k % len(iyiler)]["dosya"]}
+            else:
+                gorsel.yazi_karti("", Path(bilgi["dosya"]), 1080, 1920, gorsel.renk(icerik["plan"]["nis"]))
+    video = m07_montaj.shorts_video(ayar, kod, j, sh, sesler, [Path(b["dosya"]) for b in bilgiler])
     baslik = f"{sh['baslik'][:90]} #Shorts"
-    aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], [bilgi], shorts=True)
+    aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], bilgiler, shorts=True)
     aciklama = buyume.aciklamaya_ekle(aciklama, buyume.ic_baglanti(ayar, icerik["plan"]["nis"], kod, "shorts"))
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "shorts")
     vid = m09_youtube_yukleme.yukle(ayar, video, baslik, aciklama, icerik["etiketler"], yayin,
-                                    sentetik=bool(bilgi.get("sentetik")))
+                                    sentetik=any(b.get("sentetik") for b in bilgiler))
     if vid:
         _kaydet_yayin(ayar, kod, icerik, "shorts", j, vid, baslik, yayin, m05_seslendirme.sure(video))
     return vid

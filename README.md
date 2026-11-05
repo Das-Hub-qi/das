@@ -64,7 +64,14 @@ Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklif
 **🎬 Video kalitesi (montaj v2, hepsi ücretsiz ve yerel):**
 - Her sahnede farklı, yumuşak kamera hareketi (yaklaş, uzaklaş, kaydır, köşeye odaklan, süzül); açılışta hızlı "darbe" yakınlaşması.
 - Sahneler arası geçişler (kayma, çözülme, daire, bulanık...); bölüm başlarında karartmalı geçiş ve kayan bölüm bandı.
-- Söylenen cümle ekranda yumuşakça belirir. Shorts'ta o an söylenen kelime sarıyla vurgulanır.
+- Söylenen cümle ekranda yumuşakça belirir.
+- **Shorts (izleyiciyi tutmak için baştan tasarlandı):**
+  - Ekranda selam ya da giriş yok; ilk cümle en fazla 8 kelimelik şaşırtıcı bir iddia ya da sorudur.
+  - Toplam süre 25-35 saniyedir. Her cümleye ayrı görsel düşer ve 1,5-3 saniyede bir kesme yapılır.
+  - Kesmelerde vuruşlu yakınlaşma, ara sıra beyaz flaş ve whoosh sesi vardır.
+  - Altyazı iri, kalın ve BÜYÜK HARF'tir; kelime kelime renklenir ve zıplar. Telefonda arayüzün altında kalmasın diye ekranın ortasındadır.
+  - Üstte sürekli duran, renkli bir başlık kutusu vardır.
+  - Müzik vuruşludur ve konuşmada kısılır. Son cümle başa bağlanır, izleyici videoyu tekrar izler. Sonda "TAKİP ET" yazar.
 - Logo filigranı (`config/marka/logo.png`), ince ilerleme çubuğu, videonun ~%30'unda kayan "ABONE OL" rozeti, logolu kapanış.
 - Ses: canlı tonlama (kanca enerjik, sorular hafif yüksek perdeden, kapanış sakin). Her videoya özel, telifsiz
   **üretilmiş fon müziği** konuşma sırasında kısılır. Geçişlerde stereo "whoosh" sesi duyulur. Ses düzeyi

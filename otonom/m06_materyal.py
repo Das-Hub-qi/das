@@ -60,7 +60,7 @@ def _pixabay(sorgu: str, dikey: bool) -> list[dict]:
 
 
 _OPENVERSE_KAPALI = False  # günlük ücretsiz sınır dolarsa bu çalıştırmada bir daha denenmez
-_OPENVERSE_HATA = 0        # devre kesici: üst üste 3 sunucu hatasında bu çalıştırmada kapatılır
+_OPENVERSE_HATA = 0        # devre kesici: toplam 3 sunucu hatasında bu çalıştırmada kapatılır (zaman kaybı olmasın)
 
 
 def _openverse(sorgu: str, dikey: bool) -> list[dict]:
@@ -84,7 +84,6 @@ def _openverse(sorgu: str, dikey: bool) -> list[dict]:
             r.raise_for_status()
             sonuc = [{"url": x["url"], "kaynak": "Openverse", "yazar": x.get("creator") or "",
                       "sayfa": x.get("foreign_landing_url") or ""} for x in r.json().get("results", [])]
-            _OPENVERSE_HATA = 0
             if sonuc:
                 return sonuc
         except (requests.RequestException, ValueError, KeyError) as e:
@@ -92,7 +91,7 @@ def _openverse(sorgu: str, dikey: bool) -> list[dict]:
             log.warning("Openverse hatası (%s): %s", q, e)
             if _OPENVERSE_HATA >= 3:
                 _OPENVERSE_KAPALI = True
-                log.warning("Openverse üst üste hata veriyor; bu çalıştırmada yapay zekâ görseline geçiliyor.")
+                log.warning("Openverse sık hata veriyor; bu çalıştırmada yapay zekâ görseline geçiliyor.")
                 return []
     return []
 
@@ -121,7 +120,8 @@ def _yapay_zeka_gorseli(ayar: Ayarlar, sorgu: str, dikey: bool, hedef: Path) -> 
     import base64
     import random
 
-    istem = f"{sorgu}, cinematic photograph, natural light, high detail, no text, no watermark"
+    istem = (f"{sorgu}, photorealistic cinematic photograph, dramatic lighting, sharp focus, rich colors, "
+             "no text, no letters, no watermark")
     model = ayar["llm"].get("cloudflare_gorsel_modeli")
     if model and "cloudflare" not in _YZ_KAPALI and gizli("CLOUDFLARE_API_TOKEN") and gizli("CLOUDFLARE_ACCOUNT_ID"):
         try:
@@ -141,10 +141,16 @@ def _yapay_zeka_gorseli(ayar: Ayarlar, sorgu: str, dikey: bool, hedef: Path) -> 
         g, y = (720, 1280) if dikey else (1280, 720)
         try:
             r = requests.get("https://image.pollinations.ai/prompt/" + requests.utils.quote(istem), headers=BASLIK,
-                             timeout=120, params={"width": g, "height": y, "nologo": "true",
+                             timeout=120, params={"width": g, "height": y, "nologo": "true", "model": "flux",
                                                   "seed": random.Random(sorgu).randint(1, 10**6)})
             if r.ok and r.headers.get("content-type", "").startswith("image/"):
                 hedef.write_bytes(r.content)
+                try:  # alt köşedeki olası küçük logoyu kırp
+                    from PIL import Image
+                    with Image.open(hedef) as im:
+                        im.convert("RGB").crop((0, 0, im.width, int(im.height * 0.95))).save(hedef, quality=92)
+                except Exception:
+                    pass
                 return {"url": "", "kaynak": "Yapay zekâ (Pollinations)", "yazar": "", "sayfa": "", "sentetik": True}
             if r.status_code == 429:
                 _YZ_KAPALI.add("pollinations")

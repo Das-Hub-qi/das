@@ -36,11 +36,24 @@ SENARYO_SEMASI = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "baslik": {"type": "string", "description": "en fazla 60 karakter"},
-                    "metin": {"type": "string", "description": "90-120 kelime; ilk cümle güçlü kanca; sonunda uzun videoya davet"},
+                    "baslik": {"type": "string", "description": "en fazla 60 karakter, merak uyandıran"},
+                    "kanca_yazi": {"type": "string", "description": "ekranın üstünde duracak 2-5 kelimelik çarpıcı yazı"},
+                    "parcalar": {
+                        "type": "array",
+                        "description": "6-9 kısa cümle, toplam 55-85 kelime; her cümle yeni bir görsel/kesme olur",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "metin": {"type": "string", "description": "tek kısa cümle (4-12 kelime)"},
+                                "gorsel_arama": {"type": "string", "description": "bu cümleyi gösteren somut sahne, İngilizce 2-5 kelime"},
+                            },
+                            "required": ["metin", "gorsel_arama"],
+                            "additionalProperties": False,
+                        },
+                    },
                     "gorsel_arama": {"type": "string", "description": "İngilizce 2-4 kelime"},
                 },
-                "required": ["baslik", "metin", "gorsel_arama"],
+                "required": ["baslik", "kanca_yazi", "parcalar", "gorsel_arama"],
                 "additionalProperties": False,
             },
         },
@@ -121,7 +134,12 @@ Uzun video toplam {hedef - 100}-{hedef + 100} kelime olsun: tam {sahne} sahne ya
 her sahne 4-6 cümle (yaklaşık 75 kelime). Kısa kesme; her bölümde örnek ve açıklama ver.
 gorsel_arama alanlarını İNGİLİZCE 2-4 kelime yaz (ör. "student studying desk").
 Site adresini seslendirme metninde yazma; "açıklamadaki link" de.
-{ayar['youtube']['video_basina_shorts']} adet Shorts metni yaz.{dil_talimati(ayar)}{kanal_kimligi(ayar)}"""
+{ayar['youtube']['video_basina_shorts']} adet Shorts yaz. Shorts kuralları (izleyici ilk 1 saniyede kaydırır!):
+- İlk cümle en fazla 8 kelime: şaşırtıcı bir iddia, sayı ya da soru. Selam, giriş, "bu videoda" YOK.
+- Her cümle yeni ve somut bir bilgi; dolgu yok. Toplam 55-85 kelime (25-35 saniye).
+- Son cümle merak bırakan kısa bir sonuç olsun ve ilk cümleye bağlansın (izleyici başa dönüp tekrar izlesin).
+- Her cümlenin gorsel_arama'sı o cümlenin somut görüntüsü olsun (ör. "glowing neurons close up").
+- kanca_yazi: üstte duracak 2-5 kelimelik çarpıcı başlık (ör. "Beynin gece temizliği").{dil_talimati(ayar)}{kanal_kimligi(ayar)}"""
     from .muhendis import dersler_metni  # Öğrenme Mühendisi'nin kanaldan çıkardığı kurallar
 
     return {"id": v["kod"], "sistem": SISTEM + dersler_metni(), "istem": istem, "sema": SENARYO_SEMASI,
@@ -140,7 +158,10 @@ def sahte_icerik(v: dict, shorts: int = 2) -> dict:
             {"metin": f"{cumle} Sahne {i + 1}.", "gorsel_arama": "brain science", "bolum": b}
             for i, b in enumerate(["Giriş", "", "Asıl konu", "Sonuç"])
         ],
-        "shorts": [{"baslik": f"Kısa {i + 1}", "metin": cumle, "gorsel_arama": "brain"} for i in range(shorts)],
+        "shorts": [{"baslik": f"Kısa {i + 1}", "kanca_yazi": f"Deneme kısa {i + 1}", "gorsel_arama": "brain",
+                    "parcalar": [{"metin": c, "gorsel_arama": "brain"} for c in
+                                 ("Beynin gece temizlik yaptığını biliyor muydun?", cumle, "Peki bu neden önemli?")]}
+                   for i in range(shorts)],
         "makale": {"baslik": v["konu"].title(), "meta_aciklama": "Deneme makalesi.",
                    "govde_md": "## Giriş\n\nDeneme metni.\n\n## Sık Sorulan Sorular\n\n**Soru?** Cevap."},
     }
@@ -160,6 +181,14 @@ def _temizle(icerik: dict) -> dict:
     """Platform sınırlarını kodla garanti et (model hatasına güvenme; küçük yerel modeller için şart)."""
     icerik["baslik"] = EMOJI.sub("", icerik["baslik"]).strip()[:100]
     icerik["thumbnail_yazi"] = EMOJI.sub("", icerik["thumbnail_yazi"]).strip()
+    for sh in icerik["shorts"]:  # yeni biçim: parçalar → tek metin (yükleme, açıklama ve eski kod için)
+        if sh.get("parcalar"):
+            for parca in sh["parcalar"]:
+                parca["metin"] = _seslendirilebilir(parca["metin"])
+                parca["gorsel_arama"] = " ".join(parca["gorsel_arama"].split()[:5])
+            sh["parcalar"] = [x for x in sh["parcalar"] if x["metin"]]
+            sh["metin"] = " ".join(x["metin"] for x in sh["parcalar"])
+        sh["kanca_yazi"] = EMOJI.sub("", sh.get("kanca_yazi") or "").strip()[:48]
     for s in icerik["sahneler"] + icerik["shorts"]:
         s["metin"] = _seslendirilebilir(s["metin"])
         s["gorsel_arama"] = " ".join(s["gorsel_arama"].split()[:4])
