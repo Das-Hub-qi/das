@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import (gorsel, llm, m01_envanter, m02_nis_analizi, m03_icerik_plani, m04_senaryo, m05_seslendirme,
-               m06_materyal, m07_montaj, m08_thumbnail_metadata, m09_youtube_yukleme, m10_alan_adi,
+from . import (buyume, gorsel, llm, m01_envanter, m02_nis_analizi, m03_icerik_plani, m04_senaryo,
+               m05_seslendirme, m06_materyal, m07_montaj, m08_thumbnail_metadata, m09_youtube_yukleme, m10_alan_adi,
                m11_analiz, m12_gelir, mikro_site)
 from .ayarlar import CIKTI, KANAL_VERI as VERI, Ayarlar, csv_ekle, json_oku, json_yaz, log, ozet_yaz, uyari_ekle
 
@@ -137,6 +137,8 @@ def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
     kapak = Path(foto["dosya"]) if foto else gorsel.yazi_karti(
         "", klasor / "kapak_arka.jpg", 1280, 720, gorsel.renk(icerik["plan"]["nis"]))
     meta = m08_thumbnail_metadata.olustur(ayar, kod, icerik, sonuc["bolumler"], materyal, kapak)
+    meta["aciklama"] = buyume.aciklamaya_ekle(meta["aciklama"],
+                                              buyume.ic_baglanti(ayar, icerik["plan"]["nis"], kod, "uzun"))
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "uzun", (icerik["plan"].get("deney") or {}).get("yayin_saati"))
     vid = m09_youtube_yukleme.yukle(ayar, sonuc["video"], meta["baslik"], meta["aciklama"], meta["etiketler"],
                                     yayin, Path(meta["thumbnail"]),
@@ -157,6 +159,7 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     video = m07_montaj.shorts_video(ayar, kod, j, sh["baslik"], ses, Path(bilgi["dosya"]))
     baslik = f"{sh['baslik'][:90]} #Shorts"
     aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], [bilgi], shorts=True)
+    aciklama = buyume.aciklamaya_ekle(aciklama, buyume.ic_baglanti(ayar, icerik["plan"]["nis"], kod, "shorts"))
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "shorts")
     vid = m09_youtube_yukleme.yukle(ayar, video, baslik, aciklama, icerik["etiketler"], yayin,
                                     sentetik=bool(bilgi.get("sentetik")))
@@ -257,8 +260,12 @@ def kanal_gunluk(ayar: Ayarlar) -> list[str]:
         ("Toplu senaryo sonuçları", lambda: toplu_kontrol(ayar)),
         ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar)),
     ]
+    analiz: dict = {}
     return _adimlar(uretim + [
-        ("Modül 11 — Günlük metrik / viral kontrol", lambda: m11_analiz.calistir(ayar, tam_rapor=False)),
+        ("Modül 11 — Günlük metrik / viral kontrol",
+         lambda: analiz.update(m11_analiz.calistir(ayar, tam_rapor=False) or {})),
+        ("Büyüme — liste, yorum, yerelleştirme, paylaşım, SEO, erken aksiyon",
+         lambda: buyume.calistir(ayar, analiz.get("videolar"))),
     ])
 
 
@@ -285,6 +292,7 @@ KANAL_ISLERI = {
                                  lambda: senaryo_asamasi(a, m03_icerik_plani.calistir(a)))]),
     "uret": lambda a: _adimlar([("Toplu senaryo sonuçları", lambda: toplu_kontrol(a)),
                                 ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(a))]),
+    "buyume": lambda a: _adimlar([("Büyüme araçları", lambda: buyume.calistir(a))]),
     "analiz": lambda a: _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(a))]),
     "muhendis": lambda a: _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(a)),
                                     ("Öğrenme Mühendisi", lambda: muhendis_calistir(a))]),

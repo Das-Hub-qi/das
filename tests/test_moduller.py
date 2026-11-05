@@ -397,3 +397,60 @@ def test_konuya_gore_hiyerarsik_karar():
     say = lambda nis: sum(o.thompson_sec(o.nis_posterior(ham, kollar, 45, bugun, nis), rng) == "soru" for _ in range(400))
     assert say("noro") > 340 and say("turizm") < 60          # iki konu zıt kararlar verir
     assert 120 < say("yeni_nis") < 280                         # veri yok: kanal geneli (dengeli) ile başlar
+
+
+def test_buyume_deneme_modunda_dis_servis_cagirmaz(monkeypatch):
+    import requests
+
+    from otonom import buyume
+    from otonom.ayarlar import yukle
+
+    def yasak(*a, **k):
+        raise AssertionError("deneme modunda dış çağrı yapıldı")
+    monkeypatch.setattr(requests, "post", yasak)
+    monkeypatch.setattr(requests, "get", yasak)
+    monkeypatch.setattr("otonom.m09_youtube_yukleme.servis", yasak)
+    ayar = yukle(deneme=True)
+    assert buyume.calistir(ayar, [{"tur": "uzun", "yas_gun": 3}]) == {}
+    assert buyume.yayin_sonrasi(ayar) == {"liste": 0, "yorum": 0, "yerel": 0, "paylasim": 0}
+    assert buyume.yorum_yanitla(ayar) == 0 and buyume.kanal_seo(ayar) is False
+    assert buyume.paylas(ayar, "abc", "Başlık") == []
+    assert buyume.erken_aksiyon(ayar, [], ayar.simdi.date()) == []
+    assert buyume.oynatma_listesi(ayar, "noro") is None
+    assert any("Büyüme" in s for s in buyume.durum_bolumu(ayar))
+
+
+def test_buyume_metinleri_ve_filtreler():
+    from otonom import buyume
+    from otonom.ayarlar import yukle
+
+    assert not buyume.yanitlanabilir("Harika! bak: https://spam.example")
+    assert not buyume.yanitlanabilir("www.reklam.net abone ol")
+    assert buyume.yanitlanabilir("Çok faydalı bir video, teşekkürler")
+    assert "?" in buyume.soru_yorumu("Dopamin nedir? #Shorts", "shorts")
+    assert "#Shorts" not in buyume.duyuru_metni("Uyku ve hafıza #Shorts", "x1")
+    assert buyume.aciklamaya_ekle("açıklama", "") == "açıklama"
+    assert buyume.aciklamaya_ekle("açıklama", "▶ Şunu da izle").startswith("▶")
+    aciklama, anahtar = buyume.kanal_metni(yukle(deneme=True))
+    assert len(aciklama) <= 1000 and len(anahtar) <= 480 and '"beyin sağlığı"' in anahtar
+
+
+def test_buyume_ic_baglanti_ve_erken_aday(monkeypatch, tmp_path):
+    from otonom import buyume
+
+    monkeypatch.setattr(buyume, "VERI", tmp_path)
+    (tmp_path / "yayinlananlar.csv").write_text(
+        "tarih,kod,nis,tur,sira,youtube_id,baslik,yayin_zamani,sure_sn,kelime\n"
+        "2026-11-01,k1,noro,uzun,0,UZUN1,B,,600,900\n", encoding="utf-8")
+    (tmp_path / "metrikler.csv").write_text(
+        "tarih,youtube_id,kod,nis,tur,goruntulenme\n2026-11-01,AZ,k2,noro,uzun,5\n"
+        "2026-11-01,COK,k3,noro,uzun,500\n2026-11-01,DIGER,k4,bilisim,uzun,9000\n", encoding="utf-8")
+    assert buyume.ic_baglanti(None, "noro", "k1", "shorts").endswith("UZUN1")
+    assert buyume.ic_baglanti(None, "noro", "k9", "uzun").endswith("COK")
+    assert buyume.ic_baglanti(None, "turizm", "k9", "uzun") == ""
+
+    videolar = [{"youtube_id": f"V{i}", "tur": "uzun", "yas_gun": g, "goruntulenme": n, "begeni": n // 50, "yorum": 0}
+                for i, (g, n) in enumerate([(30, 3000), (20, 2000), (10, 900), (3, 1), (2, 400), (40, 5000)])]
+    adaylar = buyume.erken_adaylar(videolar)
+    assert [v["youtube_id"] for v in adaylar] == ["V3"]
+    assert buyume.erken_adaylar(videolar[:3]) == []
