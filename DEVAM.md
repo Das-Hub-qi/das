@@ -73,12 +73,19 @@
   Gerçek örnek videolar 100/100 geçti.
 - Testler: 42.
 
+## Durum (5 Kasım 2026, kapanış)
+- Uçtan uca gerçek test (gerçek ses + hazırlık + 2.5D + geçişler + grafikler + denetim): 35 sn uzun video,
+  hazırlık 83 sn, montaj 45 sn, karne 100/100. Kapanış kartında logo/başlık çakışması düzeltildi.
+- pip-audit temiz (yeni paketler: opencv-python-headless, tokenizers, numpy, pynacl). 42 test.
+- Kontrol Merkezi güncellendi (sürüm 3): https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf
+
 ## Sıradaki işler
-1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):
-   Tek tıkla yetki, telefon komutları, video v2, yeni gizliler (GH_YONETICI_TOKEN, NVIDIA_API_KEY, OPENROUTER_API_KEY).
-2. Gerçek kanalda ilk onaydan sonra `yetki.yml` günlüğünü ve DURUM.md "🔑 Yetkiler" bölümünü kontrol et.
-3. Fikirler: YouTube kanal filigranı (watermarks.set) ve kanal banner'ı logodan; Shorts'a ikinci ses (diyalog);
-   Kaggle GPU ile yapay zekâ görsel/klip üretimi (Hibrit'teki Kaggle altyapısı).
+1. GitHub'daki ilk gerçek çalıştırmadan sonra (Actions > Otonom sistem > beta) günlüğe bak: yerel model, derinlik ve
+   CLIP modeli indirmeleri, hazırlık süresi, Kalite Denetçisi karnesi. DURUM.md "🩺 Kalite Denetçisi" ve "🔑 Yetkiler".
+2. Kullanıcının bir kez yapması gerekenler (README "Tek tıkla yetki"): Google'da Web istemcisi + yönlendirme adresi,
+   Cloudflare anahtarı; isteğe bağlı GH_YONETICI_TOKEN, PEXELS_API_KEY.
+3. Fikirler: YouTube kanal filigranı/banner'ı logodan (watermarks.set, channelBanners); en iyi yorumlardan yeni konu;
+   uzun videoda açılışta "sonraki sahnelerden hızlı önizleme" (cold open); Kaggle GPU ile yerel görsel üretimi.
 
 ## Kullanım hakkını korumak için
 - Her yeni büyük işe **yeni oturumla** başla (bu dosyayı okut). Uzun oturum bağlamı her mesajda yeniden işlenir ve hakkı hızla tüketir.
