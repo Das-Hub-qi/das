@@ -61,6 +61,15 @@ Pazartesi 13:37 ─ (Claude toplu işi kullanılıyorsa) senaryoları alır ve �
 Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklifler, link tıklamaları, siteler
 ```
 
+**🎬 Video kalitesi (montaj v2, hepsi ücretsiz ve yerel):**
+- Her sahnede farklı, yumuşak kamera hareketi (yaklaş, uzaklaş, kaydır, köşeye odaklan, süzül); açılışta hızlı "darbe" yakınlaşması.
+- Sahneler arası geçişler (kayma, çözülme, daire, bulanık...); bölüm başlarında karartmalı geçiş ve kayan bölüm bandı.
+- Söylenen cümle ekranda yumuşakça belirir. Shorts'ta o an söylenen kelime sarıyla vurgulanır.
+- Logo filigranı (`config/marka/logo.png`), ince ilerleme çubuğu, videonun ~%30'unda kayan "ABONE OL" rozeti, logolu kapanış.
+- Ses: canlı tonlama (kanca enerjik, sorular hafif yüksek perdeden, kapanış sakin). Her videoya özel, telifsiz
+  **üretilmiş fon müziği** konuşma sırasında kısılır. Geçişlerde stereo "whoosh" sesi duyulur. Ses düzeyi
+  YouTube standardındadır (-14 LUFS). Hepsi `config/ayarlar.yaml` > `video:` / `ses:` altından açılıp kapanır.
+
 **Tek senaryodan 4 içerik:** 1 uzun video (5-9 dk, bölümlü, altyazılı) + 2 Shorts (büyük altyazılı)
 + alan adının sitesinde SEO uyumlu yazı + başlık/açıklama/etiketler. Uzun videolar Salı/Perşembe/Cumartesi
 yayına girer (`gizlilik: "zamanla"` iken; değilse Studio'dan tek tıkla).

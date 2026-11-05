@@ -118,7 +118,7 @@ def _kaydet_yayin(ayar: Ayarlar, kod: str, icerik: dict, tur: str, sira: int, vi
 
 def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
     klasor = CIKTI / kod
-    sesler = [m05_seslendirme.seslendir(ayar, s["metin"], klasor / "ses" / f"{i:03d}.mp3")
+    sesler = [m05_seslendirme.seslendir(ayar, s["metin"], klasor / "ses" / f"{i:03d}.mp3", i, len(icerik["sahneler"]))
               for i, s in enumerate(icerik["sahneler"])]
     materyal = m06_materyal.topla(ayar, kod, icerik)
     sahne_gorselleri = [m for m in materyal if "sahne" in m]
@@ -128,7 +128,7 @@ def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
     kelimeler, t = [], float(ayar["video"]["intro_saniye"])
     for ses in sesler:
         kelimeler += [(b + t, s + t, k) for b, s, k in ses["kelimeler"]]
-        t += ses["sure"] + 0.35
+        t += ses["sure"] + m07_montaj.NEFES
     srt = klasor / "altyazi.srt"
     srt.write_text(m05_seslendirme.srt(m05_seslendirme.gruplar(kelimeler)), encoding="utf-8")
 
@@ -153,9 +153,9 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     sh = icerik["shorts"][j]
     klasor = CIKTI / kod
     (klasor / "gorseller").mkdir(parents=True, exist_ok=True)
-    ses = m05_seslendirme.seslendir(ayar, sh["metin"], klasor / "ses" / f"shorts_{j}.mp3")
+    ses = m05_seslendirme.seslendir(ayar, sh["metin"], klasor / "ses" / f"shorts_{j}.mp3", 0, 1)
     bilgi = m06_materyal.gorsel_bul(ayar, sh["gorsel_arama"], klasor / "gorseller" / f"shorts_{j}.jpg", set(),
-                                    icerik["plan"]["nis"], dikey=True, yedek_yazi=sh["baslik"])
+                                    icerik["plan"]["nis"], dikey=True, yedek_yazi="")  # başlık zaten üstte yazılı
     video = m07_montaj.shorts_video(ayar, kod, j, sh["baslik"], ses, Path(bilgi["dosya"]))
     baslik = f"{sh['baslik'][:90]} #Shorts"
     aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], [bilgi], shorts=True)

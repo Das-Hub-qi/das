@@ -47,7 +47,12 @@ youtube:
 ses:
   ses_adi: "tr-TR-AhmetNeural"   # alternatif: "tr-TR-EmelNeural"
   hiz: "+5%"                     # ~155 kelime/dakika
-  muzik_seviyesi_db: -20         # arka plan müziği (config/muzik/ klasörüne telifsiz mp3 koyun)
+  muzik_seviyesi_db: -20         # arka plan müziği seviyesi (konuşma sırasında ayrıca kendiliğinden kısılır)
+  fon_muzigi: true               # config/muzik/ boşsa her videoya özel, telifsiz müzik ÜRETİLİR
+  ruh_hali: "merakli"            # müzik: sakin | merakli | enerjik | gizemli (niş ayarında ruh_hali ile değişir)
+  gecis_sesi: true               # sahne geçişlerinde "whoosh" sesi
+  efekt_seviyesi_db: -16
+  tonlama: true                  # kanca enerjik, sorular hafif yüksek, kapanış sakin; cümle ritmi değişken
 
 video:
   genislik: 1920
@@ -59,6 +64,11 @@ video:
   # İsterseniz 3 yapın (başlık kartı gösterilir).
   intro_saniye: 0
   outro_saniye: 5
+  gecis: true                # sahneler arası yumuşak/canlı geçişler (kayma, çözülme, daire...)
+  altyazi_yak: true          # söylenen cümle ekranda (sesi kapalı izleyenler için) + bölüm bandı
+  logo: "config/marka/logo.png"   # köşe filigranı + kapanışta logo (kanal ayarında "logo:" ile değişir)
+  ilerleme_cubugu: true      # altta ince ilerleme çubuğu (izleyici sonuna kadar kalır)
+  abone_rozeti: true         # videonun ~%30'unda kayan "ABONE OL" rozeti
 
 # --- Ücretsiz sınırlar (sistem bunlara göre kendini ayarlar) ---------------
 butce:

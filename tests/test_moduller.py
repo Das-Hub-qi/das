@@ -522,3 +522,16 @@ def test_yetki_eposta_ve_kasa_onceligi(monkeypatch):
     assert ayarlar.gizli("YT_REFRESH_TOKEN_DENEME") == "yeni"      # tek tıkla alınan en yeni anahtar önce gelir
     assert ayarlar.gizli("PEXELS_API_KEY") == ""                    # başka gizliler kasaya bakmaz
     ayarlar._KASA.clear()
+
+
+def test_montaj_v2_hareket_tonlama_ve_ses_tasarimi(tmp_path: Path):
+    from otonom import m05_seslendirme, m07_montaj, ses_tasarimi
+    z, x, y = m07_montaj.hareket_ifadesi("saga", 100, 24)
+    assert "cos(PI*on/100)" in x and z.startswith("1.")
+    assert m05_seslendirme.tonlama(0, 10, "Biliyor muydun?") == ("+10%", "+5Hz")   # kanca + soru
+    assert m05_seslendirme.tonlama(9, 10, "Görüşmek üzere.") == ("+1%", "-1Hz")   # sakin kapanış
+    fon = ses_tasarimi.fon_muzigi(tmp_path / "fon.wav", 3.0, 7, "enerjik")
+    efekt = ses_tasarimi.efekt_izi(tmp_path / "ef.wav", 3.0, [1.0, 2.0], 1)
+    assert m05_seslendirme.sure(fon) > 2.9 and m05_seslendirme.sure(efekt) > 2.9
+    assert "sidechaincompress" in ses_tasarimi.karisim_suzgeci(-16, -16, True, True)
+    assert "sidechaincompress" not in ses_tasarimi.karisim_suzgeci(-16, -16, False, True)

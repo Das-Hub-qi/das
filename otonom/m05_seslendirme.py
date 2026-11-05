@@ -25,7 +25,28 @@ def sure(yol: Path) -> float:
     return float(cikti)
 
 
-async def _seslendir(metin: str, yol: Path, ses: str, hiz: str) -> list[tuple[float, float, str]]:
+def tonlama(sira: int, toplam: int, metin: str, temel_hiz: str = "+5%") -> tuple[str, str]:
+    """Doğal ve canlı anlatım: kanca enerjik, sorular hafif yüksek perdeden, kapanış sakin;
+    aradaki cümlelerde küçük hız/perde dalgalanması (tekdüze robot sesi olmasın). Döner: (hız, perde)."""
+    try:
+        hiz = int(temel_hiz.strip().rstrip("%"))
+    except ValueError:
+        hiz = 5
+    perde = 0
+    if sira == 0:
+        hiz, perde = hiz + 5, 2
+    elif sira >= toplam - 1:
+        hiz, perde = hiz - 4, -1
+    else:
+        hiz += (-2, 1, 3, 0)[sira % 4]
+    if metin.rstrip().endswith("?"):
+        perde += 3
+    elif metin.rstrip().endswith("!"):
+        hiz, perde = hiz + 2, perde + 1
+    return f"{hiz:+d}%", f"{perde:+d}Hz"
+
+
+async def _seslendir(metin: str, yol: Path, ses: str, hiz: str, perde: str = "+0Hz") -> list[tuple[float, float, str]]:
     import aiohttp
     import edge_tts
 
@@ -35,7 +56,7 @@ async def _seslendir(metin: str, yol: Path, ses: str, hiz: str) -> list[tuple[fl
         ek["connector"] = aiohttp.TCPConnector(ssl=ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"]))
     if os.environ.get("HTTPS_PROXY"):
         ek["proxy"] = os.environ["HTTPS_PROXY"]
-    iletisim = edge_tts.Communicate(metin, ses, rate=hiz, boundary="WordBoundary", **ek)
+    iletisim = edge_tts.Communicate(metin, ses, rate=hiz, pitch=perde, boundary="WordBoundary", **ek)
     kelimeler = []
     with yol.open("wb") as f:
         async for parca in iletisim.stream():
@@ -104,7 +125,7 @@ def _piper(metin: str, yol: Path, dil: str = "tr") -> list[tuple[float, float, s
     return sonuc
 
 
-def seslendir(ayar: Ayarlar, metin: str, yol: Path) -> dict:
+def seslendir(ayar: Ayarlar, metin: str, yol: Path, sira: int = 1, toplam: int = 3) -> dict:
     """Döner: {"ses": yol, "sure": saniye, "kelimeler": [(baş, son, kelime), ...]}"""
     yol.parent.mkdir(parents=True, exist_ok=True)
     if ayar.deneme:
@@ -116,7 +137,9 @@ def seslendir(ayar: Ayarlar, metin: str, yol: Path) -> dict:
     hata = None
     for deneme in range(3):
         try:
-            kel = asyncio.run(_seslendir(metin, yol, ayar["ses"]["ses_adi"], ayar["ses"]["hiz"]))
+            hiz, perde = (tonlama(sira, toplam, metin, ayar["ses"]["hiz"]) if ayar["ses"].get("tonlama")
+                          else (ayar["ses"]["hiz"], "+0Hz"))
+            kel = asyncio.run(_seslendir(metin, yol, ayar["ses"]["ses_adi"], hiz, perde))
             if kel and yol.stat().st_size > 1000:
                 return {"ses": yol, "sure": sure(yol), "kelimeler": kel}
             hata = "boş ses döndü"
