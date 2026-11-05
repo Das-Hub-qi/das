@@ -38,7 +38,7 @@ def senaryo_asamasi(ayar: Ayarlar, plan: list[dict]) -> None:
     durum = _durum()
     if not plan:
         return
-    if ayar["llm"]["toplu_islem"] and not ayar.deneme:
+    if llm.toplu_mu(ayar):
         if durum.get("bekleyen_toplu"):
             log.warning("Önceki toplu iş hâlâ bekliyor; yeni plan ona eklenmedi.")
             return
@@ -52,6 +52,8 @@ def senaryo_asamasi(ayar: Ayarlar, plan: list[dict]) -> None:
                                    efor=ist["efor"], max_tokens=ist["max_tokens"])
             _kuyruga_ekle(durum, ayar, v["kod"], m04_senaryo.kaydet(ayar, v, icerik))
     json_yaz(DURUM, durum)
+    from . import yerel_llm
+    yerel_llm.bosalt()  # montajdan önce belleği boşalt
 
 
 def toplu_kontrol(ayar: Ayarlar) -> None:
@@ -205,7 +207,7 @@ def haftalik(ayar: Ayarlar) -> list[str]:
         ("Modül 3 — İçerik planı", planla),
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
     ]
-    if not ayar["llm"]["toplu_islem"] or ayar.deneme:
+    if not llm.toplu_mu(ayar):  # sonuç hemen hazırsa üretim aynı çalıştırmada yapılır
         adimlar.append(("Modül 5-9 — Üretim ve yükleme", lambda: uretim_asamasi(ayar)))
     adimlar += [
         ("Modül 10 — Alan adı metinleri", lambda: m10_alan_adi.calistir(ayar)),

@@ -19,7 +19,9 @@ TEKLIF_ALANLARI = ["tarih", "alan_adi", "ad", "eposta", "teklif", "tur", "mesaj"
 
 
 def _kv_url(yol: str = "") -> str | None:
-    hesap, ns = gizli("CLOUDFLARE_ACCOUNT_ID"), gizli("CF_KV_NAMESPACE_ID")
+    from .cloudflare_kur import kv_kimligi
+
+    hesap, ns = gizli("CLOUDFLARE_ACCOUNT_ID"), kv_kimligi()
     if not (hesap and ns and gizli("CLOUDFLARE_API_TOKEN")):
         return None
     return f"https://api.cloudflare.com/client/v4/accounts/{hesap}/storage/kv/namespaces/{ns}{yol}"

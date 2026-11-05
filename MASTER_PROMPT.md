@@ -13,10 +13,12 @@ sürdürülebilir gelir üret. Sıfır sabit maliyet, minimum insan müdahalesi 
 ## 2. ALTYAPI KURALI: YALNIZCA ÜCRETSİZ KATMANLAR
 - Zamanlayıcı ve işlem gücü: GitHub Actions (aylık ücretsiz dakika sınırının %10'unu geçme).
 - Siteler, formlar, link takibi: Cloudflare Pages + Pages Functions + KV + Email Routing + Web Analytics.
+  KV deposu, alan adı bağlama ve DNS kaydı API ile otomatik kurulur.
 - Ses: Edge TTS (tr-TR). Görsel: Pexels → Pixabay → otomatik yazı kartı. Montaj: ffmpeg.
 - Veri deposu: git deposundaki CSV/JSON/Markdown (ek hesap açma).
-- Yapay zekâ: en ucuz yeterli model (Claude Haiku 5.5), toplu işlem (%50 indirim), önbellekli
-  sabit sistem talimatı, JSON şemalı çıktı (bozuk çıktı tekrar maliyeti yok). Her çağrının maliyetini kaydet.
+- Yapay zekâ: varsayılan ÜCRETSİZ yerel model (Gemma 4 E2B, llama.cpp ile sunucu işlemcisinde),
+  JSON şeması dilbilgisiyle zorlanır (bozuk çıktı imkânsız). API anahtarı varsa Claude Haiku 5.5'e geç:
+  toplu işlem (%50 indirim), önbellekli sabit talimat. Her çağrının token/maliyetini kaydet.
 - Bekleme yapan iş bölünür: istek gönderilir, sonuç sonraki çalıştırmada alınır (beklerken dakika harcanmaz).
 
 ## 3. MİMARİ: ÇALIŞMA MASASI + LABORATUVAR
@@ -46,8 +48,9 @@ M9 Yükleme: kota hesabı yap (yükleme 1.600 birim), sığmayanı ertesi güne 
 M10 Alan adları: pitch, TR/EN ilan, alıcı e-posta şablonu, teklif yanıt şablonu, alıcı bulma rehberi (bir kez üret).
    Fiyat uydurma: belirtilmemişse "teklife açık".
 M11 Laboratuvar: metrikleri kanal içi yüzdelik sıraya çevir; puan = 0,4×günlük izlenme hızı + 0,4×izlenme yüzdesi
-   + 0,2×etkileşim (uzun ve Shorts ayrı). En iyi 3'ün ortak özelliklerini çıkar. Zayıfları SİLME;
-   başlık/küçük resim değiştir. Viral eşik (10.000) aşılırsa devam videosu planla.
+   + 0,2×etkileşim (uzun ve Shorts ayrı). En iyi 3'ün ortak özelliklerini çıkar. Zayıfları SİLME:
+   A/B testi — alternatif başlığı otomatik dene, 7 gün sonra izlenme hızı düşerse eskiye dön.
+   Viral eşik (10.000) aşılırsa devam videosu planla.
 M12 Gelir: teklifleri KV'den al, yanıt taslağı hazırla (otomatik gönderim isteğe bağlı), link tıklamalarını say,
    aylık gelir raporu (reklam, ortaklık, teklifler, yapay zekâ maliyeti).
 

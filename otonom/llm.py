@@ -1,5 +1,10 @@
-"""Claude API katmanı — en düşük maliyet için ayarlanmıştır.
+"""Yapay zekâ katmanı — iki sağlayıcı, en düşük maliyet için ayarlı.
 
+  * "yerel"  : ücretsiz yerel model (yerel_llm.py) — API anahtarı ve ücret yok.
+  * "claude" : Claude API (daha kaliteli Türkçe, ayda birkaç kuruş).
+  * "otomatik" (varsayılan): ANTHROPIC_API_KEY varsa Claude, yoksa yerel model.
+
+Claude için maliyet düşürme yöntemleri:
 Maliyet düşürme yöntemleri:
   1. En ucuz model (Claude Haiku 5.5) varsayılan.
   2. Toplu işlem (Message Batches API): tüm tokenlarda %50 indirim.
@@ -28,6 +33,18 @@ MALIYET_DOSYASI = VERI / "maliyet.csv"
 
 class LLMHatasi(RuntimeError):
     pass
+
+
+def saglayici(ayar: Ayarlar) -> str:
+    secim = ayar["llm"].get("saglayici", "otomatik")
+    if secim == "otomatik":
+        return "claude" if (gizli("ANTHROPIC_API_KEY") or gizli("ANTHROPIC_AUTH_TOKEN")) else "yerel"
+    return secim
+
+
+def toplu_mu(ayar: Ayarlar) -> bool:
+    """Toplu işlem yalnızca Claude'da anlamlı (yerel model zaten ücretsiz ve anlık)."""
+    return bool(ayar["llm"]["toplu_islem"]) and not ayar.deneme and saglayici(ayar) == "claude"
 
 
 def _istemci():
@@ -106,6 +123,21 @@ def json_uret(
     """Tek, anlık istek. Deneme modunda `sahte()` çıktısını döner."""
     if ayar.deneme:
         return sahte()
+    if saglayici(ayar) == "yerel":
+        from . import yerel_llm
+
+        metin, neden, kullanim = yerel_llm.json_uret(ayar, sistem, istem, sema, max_tokens)
+        csv_ekle(MALIYET_DOSYASI, [{
+            "gorev": gorev, "model": "yerel:" + ayar["llm"]["yerel_dosya"], "toplu": 0,
+            "girdi_token": kullanim.get("prompt_tokens", 0), "cikti_token": kullanim.get("completion_tokens", 0),
+            "onbellek_okunan": 0, "dolar": "0"}],
+            ["gorev", "model", "toplu", "girdi_token", "cikti_token", "onbellek_okunan", "dolar"])
+        if neden == "length":
+            raise LLMHatasi(f"[{gorev}] yerel model çıktısı yarıda kesildi; llm.yerel_baglam değerini artırın.")
+        try:
+            return json.loads(metin)
+        except json.JSONDecodeError as e:
+            raise LLMHatasi(f"[{gorev}] yerel model geçersiz JSON üretti: {e}") from e
     import anthropic
 
     model = ayar["llm"]["model"]
@@ -125,7 +157,7 @@ def json_uret(
 
 # ------------------------------------------------------------- toplu işlem
 
-def toplu_gonder(ayar: Ayarlar, istekler: list[dict]) -> str:
+def toplu_gonder(ayar: Ayarlar, istekler: list[dict]) -> str:  # yalnızca Claude
     """istekler: [{"id", "sistem", "istem", "sema", "efor", "max_tokens"}] -> batch kimliği"""
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
     from anthropic.types.messages.batch_create_params import Request

@@ -115,3 +115,38 @@ def test_config_dosyalari_okunur():
 
     ayar = yukle(deneme=True)
     assert ayar.nisler and ayar["llm"]["model"].startswith("claude-")
+
+
+def test_yapay_zeka_saglayici_secimi(monkeypatch):
+    from otonom import llm
+    from otonom.ayarlar import yukle
+
+    ayar = yukle()
+    ayar.genel["llm"]["saglayici"] = "otomatik"
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    assert llm.saglayici(ayar) == "yerel"           # anahtar yok -> ücretsiz yerel model
+    assert llm.toplu_mu(ayar) is False             # yerel modelde toplu işlem yok
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    assert llm.saglayici(ayar) == "claude"
+    assert llm.toplu_mu(ayar) is True
+    ayar.genel["llm"]["saglayici"] = "yerel"
+    assert llm.saglayici(ayar) == "yerel"
+
+
+def test_cloudflare_kv_kimligi(monkeypatch):
+    from otonom import cloudflare_kur
+
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    monkeypatch.delenv("CF_KV_NAMESPACE_ID", raising=False)
+    assert cloudflare_kur.kv_kimligi() == ""        # yapılandırılmamış -> sessizce boş
+    monkeypatch.setenv("CF_KV_NAMESPACE_ID", "abc123")
+    assert cloudflare_kur.kv_kimligi() == "abc123"
+
+
+def test_ab_testi_deneme_modunda_dokunmaz():
+    from datetime import date
+
+    from otonom.ayarlar import yukle
+
+    assert m11_analiz.ab_testi(yukle(deneme=True), [], date.today()) == []

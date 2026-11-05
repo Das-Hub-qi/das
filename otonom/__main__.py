@@ -8,6 +8,7 @@ Komutlar:
   site       Mikro siteleri oluştur                   analiz    Modül 11
   teklifler  Cloudflare'dan teklifleri al             rapor     Aylık gelir raporu
   maliyet    Bugüne kadarki yapay zekâ harcaması
+  cloudflare Alan adlarını Pages sitelerine bağlar, KV deposunu kurar
   beta       Tek örnek video + Shorts + site üretir, YouTube'a yüklemez ('beta/' klasörü)
 --deneme: Dış servis çağırmadan, geçici klasörde sahte veriyle uçtan uca test.
 """
@@ -23,7 +24,7 @@ import tempfile
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="otonom", description="Otonom gelir ve içerik sistemi")
     p.add_argument("komut", choices=["haftalik", "gunluk", "envanter", "nis", "plan", "uret", "alanadi", "site",
-                                     "analiz", "teklifler", "rapor", "maliyet", "beta"])
+                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare"])
     p.add_argument("--deneme", action="store_true", help="dış servis yok, geçici klasör, sahte veri")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
@@ -67,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
         m12_gelir.tiklamalari_topla(ayar)
     elif k == "rapor":
         ozet_yaz(m12_gelir.aylik_rapor(ayar))
+    elif k == "cloudflare":
+        from . import cloudflare_kur
+        cloudflare_kur.kv_kimligi()
+        cloudflare_kur.alan_adlarini_bagla(ayar)
     elif k == "beta":
         hatalar = orkestrator.beta(ayar)
     elif k == "maliyet":

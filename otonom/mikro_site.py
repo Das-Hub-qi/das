@@ -14,7 +14,8 @@ from datetime import date
 
 import markdown
 
-from .ayarlar import CLOUDFLARE_SABLON, SITE, VERI, Ayarlar, csv_oku, gizli, json_oku, json_yaz, kisa_ad, log
+from . import cloudflare_kur
+from .ayarlar import CLOUDFLARE_SABLON, SITE, VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
 
 CSS = """
 :root{--bg:#fff;--fg:#1f2937;--muted:#6b7280;--kart:#f3f4f6;--vurgu:#10b981}
@@ -171,7 +172,7 @@ def olustur(ayar: Ayarlar) -> list[str]:
                 sablon.replace("__LINKLER__", json.dumps(linkler, ensure_ascii=False)).replace("__ALAN_ADI__", alan),
                 encoding="utf-8")
         toml = f'name = "{proje}"\npages_build_output_dir = "public"\ncompatibility_date = "2025-01-01"\n'
-        kv = gizli("CF_KV_NAMESPACE_ID")
+        kv = "" if ayar.deneme else cloudflare_kur.kv_kimligi()
         if kv:
             toml += f'\n[[kv_namespaces]]\nbinding = "TEKLIFLER"\nid = "{kv}"\n'
         (kok / "wrangler.toml").write_text(toml, encoding="utf-8")

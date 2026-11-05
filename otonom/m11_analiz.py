@@ -121,6 +121,73 @@ def ortak_ozellikler(videolar: list[dict]) -> list[str]:
     return bulgular
 
 
+# ------------------------------------------------------------ A/B başlık testi
+AB_DOSYASI = VERI / "ab_testleri.csv"
+AB_ALANLARI = ["tarih", "youtube_id", "kod", "eski_baslik", "yeni_baslik", "izlenme_once", "hiz_once",
+               "hiz_sonra", "durum"]
+
+
+def _baslik_degistir(youtube_id: str, baslik: str) -> bool:
+    """snippet güncellenirken açıklama/etiket silinmesin diye önce mevcut snippet okunur (1 + 50 birim)."""
+    from .m09_youtube_yukleme import kota_harca, kota_yeterli, servis
+    if not kota_yeterli(51):
+        return False
+    yt = servis()
+    ogeler = yt.videos().list(part="snippet", id=youtube_id).execute().get("items", [])
+    if not ogeler:
+        return False
+    snip = ogeler[0]["snippet"]
+    govde = {"id": youtube_id, "snippet": {k: snip[k] for k in ("title", "description", "tags", "categoryId",
+                                                               "defaultLanguage") if k in snip}}
+    govde["snippet"]["title"] = baslik[:100]
+    yt.videos().update(part="snippet", body=govde).execute()
+    kota_harca(51)
+    return True
+
+
+def ab_testi(ayar: Ayarlar, olgun: list[dict], bugun: date, haftalik_yeni: int = 2) -> list[str]:
+    """Zayıf uzun videolarda alternatif başlığı dener; 7 gün sonra izlenme hızına göre karar verir."""
+    from .m09_youtube_yukleme import kimlik_var
+    if ayar.deneme or not kimlik_var():
+        return []
+    testler = csv_oku(AB_DOSYASI)
+    v_by_id = {v["youtube_id"]: v for v in olgun}
+    notlar = []
+    for t in testler:  # 1) biten testleri değerlendir
+        v = v_by_id.get(t["youtube_id"])
+        gun = (bugun - date.fromisoformat(t["tarih"])).days
+        if t["durum"] != "test" or not v or gun < 7:
+            continue
+        hiz_sonra = (v["goruntulenme"] - int(t["izlenme_once"])) / gun
+        t["hiz_sonra"] = f"{hiz_sonra:.1f}"
+        if hiz_sonra >= float(t["hiz_once"]):
+            t["durum"] = "kazandi"
+            notlar.append(f"✅ Yeni başlık kazandı: {t['yeni_baslik']} ({t['hiz_once']} → {hiz_sonra:.1f} izlenme/gün)")
+        elif _baslik_degistir(t["youtube_id"], t["eski_baslik"]):
+            t["durum"] = "geri_alindi"
+            notlar.append(f"↩️ Eski başlığa dönüldü: {t['eski_baslik']}")
+    denenen = {t["youtube_id"] for t in testler}
+    adaylar = sorted((v for v in olgun if v["tur"] == "uzun" and 7 <= v["yas_gun"] <= 45
+                      and v.get("skor", 100) < 40 and v["youtube_id"] not in denenen), key=lambda v: v["skor"])
+    for v in adaylar[:haftalik_yeni]:  # 2) yeni testler başlat
+        icerik = json_oku(VERI / "videolar" / v["kod"] / "icerik.json", {})
+        alternatif = (icerik.get("alternatif_basliklar") or [""])[0]
+        if alternatif and _baslik_degistir(v["youtube_id"], alternatif):
+            testler.append({"tarih": bugun.isoformat(), "youtube_id": v["youtube_id"], "kod": v["kod"],
+                            "eski_baslik": v["baslik"], "yeni_baslik": alternatif,
+                            "izlenme_once": v["goruntulenme"],
+                            "hiz_once": f"{v['goruntulenme'] / max(1, v['yas_gun']):.1f}", "hiz_sonra": "",
+                            "durum": "test"})
+            notlar.append(f"🧪 Başlık testi başladı: '{v['baslik']}' → '{alternatif}'")
+    if testler:
+        import csv
+        with AB_DOSYASI.open("w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=AB_ALANLARI)
+            w.writeheader()
+            w.writerows(testler)
+    return notlar
+
+
 def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
     yayin = [s for s in csv_oku(VERI / "yayinlananlar.csv")
              if s.get("youtube_id") and not s["youtube_id"].startswith("DENEME")]
@@ -172,6 +239,9 @@ def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
     if zayif:
         md += ["", "## Yeniden düzenlenecekler (başlık + küçük resim değiştirin; silmeyin, izlenme saatini korur)",
                *[f"- {v['baslik']} — puan {v['skor']}" for v in zayif]]
+    ab = ab_testi(ayar, olgun, bugun)
+    if ab:
+        md += ["", "## A/B başlık testleri", *[f"- {n}" for n in ab]]
     md.append("\n> CTR (tıklama oranı) API'de yok: YouTube Studio > Analytics > Erişim sekmesinden bakın.")
     rapor = "\n".join(md) + "\n"
     (VERI / "raporlar").mkdir(exist_ok=True)

@@ -7,9 +7,19 @@
 saat_dilimi: "Europe/Istanbul"
 
 # --- Yapay zekâ (metin üretimi) -------------------------------------------
-# En ucuz model: Claude Haiku 5.5 (1M token girdi 0,10 $ / çıktı 0,50 $).
-# Toplu işlem (batch) açıkken fiyat %50 daha ucuzdur; sonuç birkaç saat içinde gelir.
+# saglayici:
+#   "otomatik" = ANTHROPIC_API_KEY eklediyseniz Claude (daha kaliteli), eklemediyseniz ücretsiz yerel model
+#   "yerel"    = her zaman ücretsiz yerel model (API anahtarı ve ücret yok, GitHub sunucusunda çalışır)
+#   "claude"   = her zaman Claude Haiku 5.5 (1M token girdi 0,10 $ / çıktı 0,50 $; ayda birkaç kuruş)
 llm:
+  saglayici: "otomatik"
+  # Yerel model: Google Gemma 4 (Mart 2026). Testlerde Türkçesi en akıcı ve en hızlı küçük model.
+  yerel_model: "unsloth/gemma-4-E2B-it-GGUF"
+  yerel_dosya: "gemma-4-E2B-it-Q4_K_M.gguf"
+  yerel_baglam: 10240        # model belleği (token); senaryo + talimat sığmalı
+  yerel_sicaklik: 0.7        # yaratıcılık (0 = tekdüze, 1 = çok serbest)
+  # Claude ayarları (yalnızca Claude kullanılırken):
+  # Toplu işlem (batch) açıkken fiyat %50 daha ucuzdur; sonuç birkaç saat içinde gelir.
   model: "claude-haiku-5-5"
   toplu_islem: true          # true = %50 ucuz, sonuç sonraki çalıştırmada alınır
   senaryo_efor: "medium"     # low | medium | high  (yüksek = daha kaliteli, biraz daha pahalı)

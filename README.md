@@ -19,10 +19,11 @@ kendi kendini iyileştiren otomasyon sistemi.
 | Microsoft Edge TTS | Türkçe seslendirme | **0 ₺** |
 | Pexels + Pixabay + Openverse | Telifsiz fotoğraflar (Openverse anahtar bile istemez) | **0 ₺** |
 | YouTube Data API | Yükleme + istatistik | **0 ₺** (günlük ücretsiz kota) |
-| Claude Haiku 5.5 (yapay zekâ) | Senaryo, plan, satış metinleri | **≈ 0,01-0,05 $/ay** (toplu işlemle %50 indirimli) |
+| Yapay zekâ (senaryo, plan, satış metinleri) | **Yerel model Gemma 4** GitHub sunucusunda çalışır | **0 ₺** |
+| — isteğe bağlı: Claude Haiku 5.5 | Daha kaliteli Türkçe, daha hızlı | ≈ 0,01-0,05 $/ay (toplu işlemle %50 indirimli) |
 
-Tek gerçek ödeme: Anthropic hesabına bir kez yüklenen **5 $** kredi (bu kullanımla yıllarca yeter)
-ve alan adlarınızın yıllık yenileme ücreti (zaten ödüyorsunuz).
+Sistem **hiçbir ücretli hesap olmadan** çalışır. Tek gider alan adlarınızın yıllık yenileme ücretidir (zaten ödüyorsunuz).
+İsterseniz Anthropic hesabına 5 $ yükleyip Claude'a geçebilirsiniz (daha kaliteli metin; bu kullanımla yıllarca yeter).
 
 ## ⚡ Orijinal plana göre yapılan verimlilik iyileştirmeleri
 
@@ -38,6 +39,8 @@ ve alan adlarınızın yıllık yenileme ücreti (zaten ödüyorsunuz).
 | 3 sn boş intro | Doğrudan **kanca** ile başlangıç (isteğe bağlı açılır) | İlk saniyelerde izleyici kaybı azalır |
 | — | **Otomatik bölüm (chapter) zaman damgaları** + altyazı yükleme | Google aramada görünürlük, izlenme süresi |
 | — | Videolar **Salı/Perşembe/Cumartesi 18:00**'e zamanlanır | Düzenli yayın, sıfır müdahale |
+| A/B testi (elle) | Zayıf videoda **alternatif başlık otomatik denenir**, 7 gün sonra kazanan kalır | İzlenmeyen video kurtarılır |
+| Ücretli yapay zekâ | **Ücretsiz yerel model** (Gemma 4), anahtar varsa otomatik Claude | Gerçekten 0 ₺ |
 | Domain parking | Ücretsiz **site + teklif formu**; teklif gelince yanıt taslağı hazırlanır | Park gelirinden fazlası, sıfır maliyet |
 
 ---
@@ -47,9 +50,11 @@ ve alan adlarınızın yıllık yenileme ücreti (zaten ödüyorsunuz).
 > Her adımda aldığınız anahtarları **GitHub > deponuz > Settings > Secrets and variables > Actions >
 > New repository secret** bölümüne, tablodaki adla ekleyin. Anahtarları asla dosyalara yazmayın.
 
-### 1. Yapay zekâ anahtarı (zorunlu)
-1. https://console.anthropic.com adresinde hesap açın, **Billing**'den 5 $ kredi yükleyin.
-2. **API Keys > Create Key** → `ANTHROPIC_API_KEY` olarak ekleyin.
+### 1. Yapay zekâ — hiçbir şey yapmanıza gerek yok
+Anahtar eklemezseniz sistem **ücretsiz yerel model** (Google Gemma 4 E2B) kullanır; model dosyası ilk
+çalıştırmada bir kez indirilir ve saklanır. İsterseniz daha kaliteli metin için Claude'a geçin:
+https://console.anthropic.com → **Billing**'den 5 $ yükleyin → **API Keys > Create Key** → `ANTHROPIC_API_KEY`
+olarak ekleyin. Sistem anahtarı görünce otomatik olarak Claude'a geçer.
 
 ### 2. Görsel anahtarları (ücretsiz, önerilir)
 - https://www.pexels.com/api → `PEXELS_API_KEY`
@@ -84,14 +89,14 @@ Pexels anahtarı görsel kalitesini belirgin şekilde artırır.)
 ### 4. Cloudflare (siteler, teklif formu, link takibi)
 1. https://dash.cloudflare.com → ücretsiz hesap → **Add a domain** ile alan adlarınızı ekleyin,
    alan adı firmanızda (kayıt firması) nameserver'ları Cloudflare'in verdikleriyle değiştirin.
-2. **Workers & Pages > KV > Create namespace** → adı `TEKLIFLER` → çıkan kimliği `CF_KV_NAMESPACE_ID` olarak ekleyin.
-3. **My Profile > API Tokens > Create Token > Custom token** izinleri:
-   *Account – Cloudflare Pages – Edit* ve *Account – Workers KV Storage – Edit* → `CLOUDFLARE_API_TOKEN`.
-4. Sağ menüdeki **Account ID** → `CLOUDFLARE_ACCOUNT_ID`.
-5. İlk çalıştırmadan sonra **Workers & Pages** altında her alan adı için bir proje oluşur
-   (ör. `trustneurohub-com-tr`). Projeye girip **Custom domains > Set up a domain** ile alan adınızı bağlayın.
-6. (İsteğe bağlı) **Email > Email Routing**: `teklif@alanadiniz` → Gmail'inize yönlendirin.
-7. (İsteğe bağlı) **Web Analytics** → site ekleyin, token'ı `config/ayarlar.yaml` > `cloudflare.web_analytics_token`'a yazın.
+2. **My Profile > API Tokens > Create Token > Custom token** izinleri:
+   *Account – Cloudflare Pages – Edit*, *Account – Workers KV Storage – Edit*,
+   *Zone – Zone – Read*, *Zone – DNS – Edit* → `CLOUDFLARE_API_TOKEN`.
+3. Sağ menüdeki **Account ID** → `CLOUDFLARE_ACCOUNT_ID`.
+4. Gerisi otomatik: teklif deposu (KV) oluşturulur, her alan adı için site kurulur, alan adı siteye bağlanır
+   ve DNS kaydı eklenir. (Alan adında eski bir park/yönlendirme kaydı varsa Cloudflare > DNS'ten silin.)
+5. (İsteğe bağlı) **Email > Email Routing**: `teklif@alanadiniz` → Gmail'inize yönlendirin.
+6. (İsteğe bağlı) **Web Analytics** → site ekleyin, token'ı `config/ayarlar.yaml` > `cloudflare.web_analytics_token`'a yazın.
 
 ### 5. Kendi bilgilerinizi girin
 `config/varliklar.yaml` dosyasını GitHub'da açıp (kalem simgesi) düzenleyin:
@@ -141,14 +146,30 @@ Bir adım hata verirse GitHub size **ücretsiz e-posta** gönderir.
 | `veri/` | Sistemin hafızası: planlar, senaryolar, metrikler, raporlar, teklifler |
 | `MASTER_PROMPT.md` | Sistemin güncellenmiş ana talimatı (başka yapay zekâ ajanlarına da verilebilir) |
 
+## 🤖 Yerel model seçimi (test sonuçları)
+
+Kasım 2026'da işlemcide çalışabilen güncel küçük modeller bu sistemin gerçek görevinde denendi
+(4 çekirdekli işlemci, 4-bit model dosyası):
+
+| Model | Dosya | Hız | Türkçe kalitesi |
+|---|---|---|---|
+| **Gemma 4 E2B** (seçilen) | 3,1 GB | 6,8 token/sn | Akıcı ve doğru; en hızlı |
+| Gemma 4 E4B | 5,0 GB | 4,5 token/sn | En akıcı ama yavaş; ücretsiz sunucunun 7 GB belleğini zorlar |
+| Qwen3.5 4B | 2,7 GB | 4,6 token/sn | Belirgin dil bilgisi hataları |
+
+Ücretsiz GitHub sunucusu (2 çekirdek) yaklaşık yarı hızdadır: haftalık 3 senaryo ~1 saat sürer,
+aylık ücretsiz 2.000 dakikanın içinde kalır. Modeli değiştirmek için `config/ayarlar.yaml` > `llm.yerel_*`.
+Daha kaliteli metin isterseniz `ANTHROPIC_API_KEY` ekleyin (ayda birkaç kuruş).
+
 ## 🖥️ Kendi bilgisayarınızda deneme
 ```
 pip install -r requirements.txt          # ayrıca ffmpeg kurulu olmalı
+pip install -r requirements-yerel.txt    # ücretsiz yerel model için (bir kez derlenir)
 python -m otonom haftalik --deneme       # hiçbir servise bağlanmadan uçtan uca test
 python -m pytest -q                      # testler
 ```
 Gerçek çalıştırma için `.env.example` dosyasını `.env` adıyla kopyalayıp doldurun.
-Komutlar: `beta, haftalik, gunluk, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+Komutlar: `beta, haftalik, gunluk, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
 
 ---
 

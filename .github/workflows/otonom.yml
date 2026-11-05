@@ -14,7 +14,7 @@ on:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, beta, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, beta, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
 
 permissions:
   contents: write          # veri/ klasöründeki sonuçları depoya kaydetmek için
@@ -26,7 +26,7 @@ concurrency:
 jobs:
   calistir:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240         # yerel model işlemcide çalıştığı için haftalık iş uzun sürebilir
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -49,6 +49,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements*.txt
 
       - name: Araçları kur (ffmpeg, yazı tipleri, Python paketleri)
         run: |
@@ -56,7 +57,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
           pip install -q -r requirements.txt
 
-      - name: Komutu belirle
+      - name: Komutu ve yapay zekâ sağlayıcısını belirle
         id: komut
         run: |
           KOMUT="${{ github.event.inputs.komut }}"
@@ -64,7 +65,29 @@ jobs:
             if [ "${{ github.event.schedule }}" = "17 6 * * 1" ]; then KOMUT=haftalik; else KOMUT=gunluk; fi
           fi
           echo "ad=$KOMUT" >> "$GITHUB_OUTPUT"
-          echo "Komut: $KOMUT"
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          from otonom.ayarlar import yukle
+          from otonom import llm
+          a = yukle()
+          print("saglayici=" + llm.saglayici(a))
+          print("model_dosyasi=" + a["llm"]["yerel_dosya"])
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      # Ücretsiz yerel model yalnızca metin üreten komutlarda kurulur (diğerlerinde dakika harcanmaz)
+      - name: Yerel model dosyasını önbellekten al
+        if: steps.komut.outputs.saglayici == 'yerel' && contains('haftalik beta plan alanadi', steps.komut.outputs.ad)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/otonom-modeller
+          key: model-${{ steps.komut.outputs.model_dosyasi }}
+
+      - name: Yerel model çalıştırıcısını kur (llama.cpp)
+        if: steps.komut.outputs.saglayici == 'yerel' && contains('haftalik beta plan alanadi', steps.komut.outputs.ad)
+        env:
+          # Tüm GitHub sunucularında çalışan taşınabilir derleme (önbellekteki paket farklı işlemcide de çalışsın)
+          CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+        run: pip install -q -r requirements-yerel.txt
 
       - name: Sistemi çalıştır
         id: calis
@@ -73,6 +96,10 @@ jobs:
       - name: Siteleri Cloudflare Pages'e yükle (yalnızca değişenler)
         if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
         run: bash araclar/siteleri_yukle.sh
+
+      - name: Alan adlarını sitelere bağla (otomatik, ilk seferde)
+        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: python -m otonom cloudflare
 
       - name: Sonuçları depoya kaydet
         if: always()
