@@ -16,7 +16,7 @@ on:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, beta, yeni_kanal, muhendis, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, beta, yeni_kanal, muhendis, buyume, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
       aciklama:
         description: "Yalnızca yeni_kanal için: kanalı bir cümleyle anlat (konu, kitle, dil, biçim)"
         type: string
@@ -34,8 +34,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KANAL_KOMUTLARI: " haftalik gunluk beta nis plan uret analiz muhendis "
-  YZ_KOMUTLARI: " haftalik beta plan muhendis gunluk uret "
+  KANAL_KOMUTLARI: " haftalik gunluk beta nis plan uret analiz muhendis buyume "
+  YZ_KOMUTLARI: " haftalik beta plan muhendis gunluk uret buyume "
 
 jobs:
   # 1) Komutu ve çalışacak kanalları belirle (hafif, ~20 sn)

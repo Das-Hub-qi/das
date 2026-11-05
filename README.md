@@ -165,6 +165,43 @@ başlar), nişlerin `alan_adi` ve `ortaklik_linkleri` (`kisa-ad: "https://..."`)
 Dosyayı GitHub'da açıp kalem simgesiyle düzenleyebilirsin. Ayar dosyasında yazım hatası yaparsan sistem satır numarasıyla
 Türkçe uyarı verir; eksik bıraktığın ayarları varsayılanla tamamlar.
 
+### F. Arama motorları (isteğe bağlı, ücretsiz)
+Siteler her güncellemede **IndexNow** ile Bing/Yandex'e kendiliğinden bildirilir (anahtar gerekmez).
+Google için: Google Cloud'da aynı projede **Site Verification API** ve **Search Console API**'yi etkinleştir
+(APIs & Services > Library), sonra bilgisayarında `python araclar/youtube_token_al.py arama` çalıştır ve çıkan
+değeri `GOOGLE_ARAMA_TOKEN` adıyla GitHub Secrets'a ekle. Sistem siteleri doğrular, Search Console'a ekler ve site haritasını gönderir.
+
+### G. Paylaşım (isteğe bağlı, ücretsiz)
+Yayına giren her video otomatik duyurulur:
+- **Telegram:** @BotFather'dan bot aç → `TELEGRAM_BOT_TOKEN`; botu kanalına yönetici yap → `TELEGRAM_KANAL` (ör. `@kanaladi`).
+- **Bluesky:** Ayarlar > Uygulama şifreleri → `BLUESKY_KULLANICI` (ör. `ad.bsky.social`) ve `BLUESKY_SIFRE`.
+
+---
+
+## 🚀 Büyüme araçları (YouTube algoritması için, kendiliğinden)
+Günlük çalıştırmada, yayına giren her video için (kota elverdikçe, her adım bir kez):
+
+| Araç | Ne yapar? |
+|---|---|
+| Oynatma listeleri | Her niş için liste açar, videoyu ekler (izlenme süresi ve oturum uzar) |
+| Sahip yorumu | Videoya soru soran ilk yorumu yazar. **Sabitleme API'de yok:** DURUM.md hangi videolarda Studio'dan sabitleyeceğini söyler |
+| Yorum yanıtlama | Günde en fazla 10 yeni yoruma kısa, saygılı yanıt; bağlantı/spam/hakaret içerenler yanıtlanmaz |
+| İngilizce yerelleştirme | Uzun videolara İngilizce başlık ve açıklama ekler (yabancı aramalarda görünür) |
+| Kanal SEO | Ayda bir kanal açıklamasını ve anahtar kelimelerini nişlere göre yeniler |
+| İç bağlantılar | Açıklamaya "▶ Şunu da izle" (nişin en çok izlenen videosu); Shorts'a aynı konunun uzun videosu |
+| Erken aksiyon | 2-4 günlük video yaşına göre çok zayıfsa başlığı değiştirir + yeni küçük resim yükler; 7 gün sonra kazanan seçilir, kaybederse eski başlık geri gelir |
+| Paylaşım | Telegram / Bluesky duyurusu (anahtar varsa) |
+
+Sahip yorumu ve yorum yanıtlama için kanal dosyasında `kanal_id` yazılı olmalı. Eski YouTube anahtarı yorum izni
+içermiyorsa `python araclar/youtube_token_al.py <kanal>` ile bir kez yenile. Elle çalıştırmak için komut: `buyume`.
+
+---
+
+## 🔒 Güvenlik
+Gizli anahtarlar yalnızca GitHub Secrets'ta durur, depoda asla yer almaz (testler bunu denetler); herkese açık depoda
+kişisel veriler maskelenir, dış kaynaklardan gelen metin filtrelenir, sitelere güvenlik başlıkları eklenir.
+Ayrıntılar ve açık bildirme: [SECURITY.md](SECURITY.md).
+
 ---
 
 ## 🧠 Kendi kendine öğrenme
@@ -258,13 +295,14 @@ göz at. Site adresi ve emoji gibi seslendirmeyi bozan şeyler kodla temizlenir.
 | `otonom/optimizasyon.py`, `muhendis.py` | Öğrenme motoru ve Öğrenme Mühendisi |
 | `otonom/kanal_sihirbazi.py` | Tek cümleden yeni kanal |
 | `otonom/yerel_llm.py`, `butce.py`, `durum_paneli.py` | Yerel model, sınır bütçesi, DURUM.md |
-| `otonom/orkestrator.py`, `mikro_site.py`, `cloudflare_kur.py` | Döngüler, siteler, Cloudflare kurulumu |
+| `otonom/orkestrator.py`, `mikro_site.py`, `cloudflare_kur.py` | Döngüler, siteler (VideoObject şeması), Cloudflare kurulumu |
+| `otonom/buyume.py`, `arama_motoru.py` | YouTube büyüme araçları, arama motoru kaydı |
 | `cloudflare/functions/` | Teklif formu ve kısa link fonksiyonları |
 | `veri/` | Sistemin hafızası (bkz. [veri/BENIOKU.md](veri/BENIOKU.md)) |
 | `MASTER_PROMPT.md` | Sistemin ana talimatı |
 
 Komutlar (Actions'tan veya bilgisayarında `python -m otonom <komut>`):
-`beta, haftalik, gunluk, yeni_kanal, kanallar, muhendis, durum, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+`beta, haftalik, gunluk, buyume, arama, yeni_kanal, kanallar, muhendis, durum, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
 (kanal komutlarına `--kanal <kod>` eklenirse yalnızca o kanal çalışır)
 
 Bilgisayarında denemek için:

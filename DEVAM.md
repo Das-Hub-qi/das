@@ -18,30 +18,29 @@
 - **Öğrenme:** HİYERARŞİK (konuya göre) Thompson: her niş kendi başlık stili/uzunluk/saat/kaynak kazananını öğrenir, az verili niş kanal genelinden %30 ödünç alır (`optimizasyon.nis_posterior`). Yaşa göre puan, A/B başlık, viral takip, Öğrenme Mühendisi.
 - **Güvenlik:** SECURITY.md. **Arama motorları:** `otonom/arama_motoru.py` (IndexNow + Google Search Console).
 - **Panel:** `DURUM.md` (her çalıştırmada) ve Kontrol Merkezi: https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf
-- Testler: `python -m pytest -q` (25 test), deneme: `python -m otonom haftalik --deneme`.
+- Testler: `python -m pytest -q` (29 test), deneme: `python -m otonom haftalik --deneme`.
 
 ## Son gerçek deneme (5 Kasım 2026)
 - Anahtarsız, yalnızca yerel modelle beta: 8,4 dk video + 2 Shorts üretildi; senaryo 290 → 859 kelime genişletildi.
 - Openverse sık 500 hatası veriyor → devre kesici eklendi. Pillow 13.0.0'a yükseltildi (39 açık kapandı).
 
-## Sıradaki işler (kullanıcının son isteği: "YouTube'da bilinirlik için tüm araçlar, algoritmaya göre aksiyon")
-1. **`otonom/buyume.py` — YouTube büyüme araçları** (kota: playlist/yorum/güncelleme 50 birim):
-   - Niş başına otomatik **oynatma listesi** (playlists.insert, playlistItems.insert); id'ler `veri/kanallar/<k>/oynatma_listeleri.json`.
-   - Yüklemeden sonra kanal sahibi olarak **soru içeren ilk yorum** (commentThreads.insert). Sabitleme API'de yok → DURUM'da hatırlat.
-   - Günlük **yorum yanıtlama**: allThreadsRelatedToChannelId ile yeni yorumlar, LLM ile kısa yanıt
-     (şema {"uygun": bool, "yanit": str}; spam/link/hakaret → yanıtlama), günde en fazla 10, yanıtlananlar json'da.
-   - **Yerelleştirme:** uzun videolara İngilizce başlık/açıklama (videos.update part=snippet,localizations).
-   - **Kanal SEO:** kanal açıklaması ve anahtar kelimeleri (channels.update brandingSettings) — bir kez/ayda bir.
-   - **İç bağlantı:** açıklamaya nişin en çok izlenen videosu ("▶ Şunu da izle"); Shorts açıklamasına aynı konunun uzun videosu.
-   - **Erken aksiyon (algoritma):** 2-4 günlük videoda yaşa göre puan çok düşükse erken başlık değişimi +
-     yeni küçük resim (yapay zekâ arka planı + alternatif yazı, thumbnails.set); 7 gün sonra değerlendir (m11.ab_testi'ne benzer).
-   - **Paylaşım:** isteğe bağlı Telegram (TELEGRAM_BOT_TOKEN, TELEGRAM_KANAL) ve Bluesky (BLUESKY_KULLANICI, BLUESKY_SIFRE)
-     ile yeni video duyurusu. Gizlilere `ayarlar.gizli()` ile eriş (TUM_GIZLILER destekli).
-   - Bağla: `orkestrator._uzun_uret/_shorts_uret` sonrası + `kanal_gunluk`; DURUM'a "Büyüme" bölümü; testler (deneme modunda API çağrısı yok).
-2. **SEO:** `mikro_site.py` yazı sayfalarına VideoObject JSON-LD + og:image (https://i.ytimg.com/vi/<id>/hqdefault.jpg).
-3. README'ye: güvenlik bölümü (SECURITY.md bağlantısı), arama motorları (GOOGLE_ARAMA_TOKEN: `python araclar/youtube_token_al.py arama`,
-   Google Cloud'da "Site Verification API" ve "Search Console API" etkinleştirilmeli), büyüme araçları.
-4. Kontrol Merkezi'ni güncelle (Artifact, aynı URL; dosya yoksa önce `action: read`).
+## Tamamlananlar (5 Kasım 2026, 2. oturum)
+- `otonom/buyume.py`: oynatma listeleri, soru içeren sahip yorumu (sabitleme hatırlatması DURUM'da), günlük yorum yanıtlama
+  (≤10, bağlantı/spam filtresi, LLM şeması {"uygun","yanit"}), İngilizce yerelleştirme, aylık kanal SEO, iç bağlantı
+  (yükleme öncesi açıklamaya), erken aksiyon (2-4 gün, zayıfsa başlık + yeni küçük resim → m11 A/B dosyasına "test"),
+  Telegram/Bluesky duyurusu. Yayın sonrası adımlar `veri/kanallar/<k>/buyume.json` ile takip edilir.
+- Bağlantılar: `kanal_gunluk` → "Büyüme" adımı; `_uzun_uret/_shorts_uret` → iç bağlantı; yeni komut `buyume`
+  (workflow seçeneklerine de eklendi); DURUM.md'de "🚀 Büyüme" bölümü (tüm kanallar).
+- `mikro_site.py`: yazı sayfalarına VideoObject JSON-LD + og:image. README: F (arama motorları), G (paylaşım),
+  Büyüme araçları ve Güvenlik bölümleri. `.env.example`'a yeni anahtarlar. Testler: 29.
+
+## Sıradaki işler
+1. **Kontrol Merkezi'ni güncelle** (Artifact, aynı URL https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf;
+   önce `action: read`): Büyüme bölümü + yeni gizliler (TELEGRAM_*, BLUESKY_*, GOOGLE_ARAMA_TOKEN).
+2. Gerçek kanalda ilk günlük çalıştırmadan sonra DURUM.md "Büyüme" bölümünü kontrol et; YouTube anahtarı eski ise
+   yorum/oynatma listesi izni için `python araclar/youtube_token_al.py <kanal>` ile yenilenmeli.
+3. İsteğe bağlı fikirler: Shorts'tan uzun videoya "ilgili video" bağlantısı (API'de yok, Studio'dan elle);
+   en iyi yorumlardan yeni video konusu çıkarma (oncelikli_konular.json'a).
 
 ## Kullanım hakkını korumak için
 - Her yeni büyük işe **yeni oturumla** başla (bu dosyayı okut). Uzun oturum bağlamı her mesajda yeniden işlenir ve hakkı hızla tüketir.
