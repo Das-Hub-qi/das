@@ -53,7 +53,7 @@ def seslendirmeler(icerik: dict, kod: str) -> list[tuple]:
 
 # ------------------------------------------------------------ senaryo denetimi
 
-def shorts_sorunlari(sh: dict) -> list[str]:
+def shorts_sorunlari(sh: dict, en_fazla: int = 90) -> list[str]:
     parcalar = sh.get("parcalar") or []
     if not parcalar:
         return []
@@ -62,8 +62,8 @@ def shorts_sorunlari(sh: dict) -> list[str]:
     toplam = sum(len(p["metin"].split()) for p in parcalar)
     if ilk > 9:
         sorun.append(f"ilk cümle {ilk} kelime (en fazla 8 olmalı)")
-    if not 50 <= toplam <= 90:
-        sorun.append(f"toplam {toplam} kelime (55-85 olmalı)")
+    if not 50 <= toplam <= en_fazla:
+        sorun.append(f"toplam {toplam} kelime (55-{min(85, en_fazla)} olmalı)")
     uzun = [p["metin"] for p in parcalar if len(p["metin"].split()) > 14]
     if uzun:
         sorun.append(f"{len(uzun)} cümle 14 kelimeden uzun")
@@ -78,11 +78,11 @@ DUZELTME_SEMASI = {
                    "parcalar": m04_senaryo.SENARYO_SEMASI["properties"]["shorts"]["items"]["properties"]["parcalar"]}}
 
 
-def senaryo_denetle(ayar: Ayarlar, kod: str, icerik: dict) -> int:
+def senaryo_denetle(ayar: Ayarlar, kod: str, icerik: dict, en_fazla: int = 90) -> int:
     """Kurala uymayan Shorts metinlerini yerel yapay zekâyla düzeltir. Döner: düzeltilen Shorts sayısı."""
     duzeltilen = 0
     for sh in icerik.get("shorts", []):
-        sorunlar = shorts_sorunlari(sh)
+        sorunlar = shorts_sorunlari(sh, en_fazla)
         if not sorunlar:
             continue
         istem = (f"Bu YouTube Shorts metnini kurallara uydur. Sorunlar: {'; '.join(sorunlar)}.\n"
@@ -97,7 +97,7 @@ def senaryo_denetle(ayar: Ayarlar, kod: str, icerik: dict) -> int:
         except llm.LLMHatasi as e:
             log.warning("Shorts düzeltilemedi: %s", e)
             continue
-        if yeni.get("parcalar") and len(shorts_sorunlari(yeni)) < len(sorunlar):
+        if yeni.get("parcalar") and len(shorts_sorunlari(yeni, en_fazla)) < len(sorunlar):
             sh["parcalar"] = [{"metin": m04_senaryo._seslendirilebilir(p["metin"]),
                                "gorsel_arama": " ".join(p["gorsel_arama"].split()[:5])} for p in yeni["parcalar"]]
             sh["metin"] = " ".join(p["metin"] for p in sh["parcalar"])
@@ -111,6 +111,12 @@ def senaryo_denetle(ayar: Ayarlar, kod: str, icerik: dict) -> int:
 
 # ------------------------------------------------------------ görsel adayları
 
+STILLER = {"sinematik": "cinematic film still, dramatic light", "belgesel": "documentary photograph, natural light",
+           "canli_renkli": "vibrant colors, high contrast, bold composition",
+           # Öğrenme Mühendisi kazanan stili bulunca bu havuzdan yenilerini dener:
+           "illustrasyon": "detailed digital illustration, clean shapes", "minimal": "minimalist composition, soft light"}
+
+
 def aday_uret(ayar: Ayarlar, yuva: dict, n: int, nis: str, kullanilan: set[str]) -> dict | None:
     """n. aday: 0 = normal kaynak sırası; sonrakiler farklı kadraj/tohumla yapay zekâ, son çare stok."""
     klasor = yuva["hedef"].parent / "adaylar"
@@ -120,7 +126,7 @@ def aday_uret(ayar: Ayarlar, yuva: dict, n: int, nis: str, kullanilan: set[str])
         bilgi = m06_materyal.gorsel_bul(ayar, yuva["sorgu"], hedef, kullanilan, nis, dikey=yuva["dikey"],
                                         yedek_yazi="", hazir_kullan=False)
     else:
-        sorgu = f"{yuva['sorgu']}, {KADRAJLAR[n % len(KADRAJLAR)]}".strip(", ")
+        sorgu = ", ".join(x for x in (yuva["sorgu"], KADRAJLAR[n % len(KADRAJLAR)], STILLER.get(yuva.get("stil", ""), "")) if x)
         bilgi = m06_materyal._yapay_zeka_gorseli(ayar, sorgu, yuva["dikey"], hedef)
         if bilgi:
             bilgi = {**bilgi, "dosya": str(hedef), "sorgu": yuva["sorgu"]}
@@ -151,7 +157,7 @@ def hazirla(ayar: Ayarlar, kod: str, icerik: dict, sure_sn: float) -> dict:
     hedef_aday = 1 if ayar.deneme else int(hz["aday_sayisi"])
 
     if not d.get("senaryo_denetlendi"):
-        d["duzeltilen_shorts"] = senaryo_denetle(ayar, kod, icerik)
+        d["duzeltilen_shorts"] = senaryo_denetle(ayar, kod, icerik, 70 if d.get("kati") else 90)
         d["senaryo_denetlendi"] = True
         json_yaz(_durum_yolu(kod), d)
 
@@ -161,9 +167,11 @@ def hazirla(ayar: Ayarlar, kod: str, icerik: dict, sure_sn: float) -> dict:
         m05_seslendirme.seslendir(ayar, metin, yol, sira, toplam, ek_hiz=ek)  # önbellekli
 
     kullanilan: set[str] = set()
+    stil = (icerik["plan"].get("deney") or {}).get("gorsel_stili", "")
     for yuva in yuvalar(icerik, kod):
+        yuva["stil"] = stil
         kayit = d["yuvalar"].setdefault(yuva["ad"], {"adaylar": [], "denenen": 0})
-        while kayit["denenen"] < hedef_aday and time.time() - bas <= sure_sn:
+        while kayit["denenen"] < hedef_aday + kayit.get("hedef_ek", 0) and time.time() - bas <= sure_sn:
             n = kayit["denenen"]
             kayit["denenen"] += 1
             bilgi = aday_uret(ayar, yuva, n, nis, kullanilan)
@@ -171,12 +179,12 @@ def hazirla(ayar: Ayarlar, kod: str, icerik: dict, sure_sn: float) -> dict:
                 bilgi.update(secici.puanla(Path(bilgi["dosya"]), yuva["sorgu"]) if not ayar.deneme else {"puan": 50})
                 kayit["adaylar"].append(bilgi)
             json_yaz(_durum_yolu(kod), d)
-        if kayit["denenen"] >= hedef_aday and not kayit.get("secilen"):
+        if kayit["denenen"] >= hedef_aday + kayit.get("hedef_ek", 0) and not kayit.get("secilen"):
             secilen = _sec(yuva, kayit["adaylar"])
             kayit["secilen"] = secilen["dosya"] if secilen else ""
             kayit["puan"] = secilen.get("puan") if secilen else None
     sesler_tamam = all(Path(y).with_suffix(".json").exists() for _, y, *_ in seslendirmeler(icerik, kod))
-    d["hazir"] = sesler_tamam and all(k.get("secilen") is not None and k["denenen"] >= hedef_aday
+    d["hazir"] = sesler_tamam and all(k.get("secilen") is not None and k["denenen"] >= hedef_aday + k.get("hedef_ek", 0)
                                       for k in d["yuvalar"].values())
     puanlar = [k["puan"] for k in d["yuvalar"].values() if k.get("puan") is not None]
     d["ortalama_puan"] = round(sum(puanlar) / len(puanlar), 1) if puanlar else None
@@ -184,6 +192,24 @@ def hazirla(ayar: Ayarlar, kod: str, icerik: dict, sure_sn: float) -> dict:
     log.info("Hazırlık %s: %s (ortalama görsel puanı %s, %.0f sn)", kod, "HAZIR" if d["hazir"] else "devam ediyor",
              d["ortalama_puan"], time.time() - bas)
     return d
+
+
+def yeniden_hazirla(ayar: Ayarlar, kod: str, tur: str, sira: int, metin: bool = False) -> None:
+    """Kalite Denetçisi'nden geri dönüş: zayıf görsel yuvalarına 2'şer aday daha, istenirse Shorts metnini kısalt."""
+    d = json_oku(_durum_yolu(kod), {}) or {}
+    d["onarim_denemesi"] = d.get("onarim_denemesi", 0) + 1
+    onek = "sahne_" if tur == "uzun" else f"shorts_{sira}_"
+    esik = float(ayar["denetim"]["zayif_gorsel_esigi"]) + 10
+    for ad, k in (d.get("yuvalar") or {}).items():
+        if ad.startswith(onek) and (k.get("puan") is None or k["puan"] < esik):
+            k["hedef_ek"] = k.get("hedef_ek", 0) + 2
+            k.pop("secilen", None)
+            (CIKTI / kod / "gorseller" / f"{ad}.hazir.json").unlink(missing_ok=True)
+    if metin:
+        d["senaryo_denetlendi"], d["kati"] = False, True
+    d["hazir"] = False
+    d["baslangic"] = ayar.simdi.isoformat(timespec="minutes")
+    json_yaz(_durum_yolu(kod), d)
 
 
 def uretime_hazir(ayar: Ayarlar, kod: str) -> bool:

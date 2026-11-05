@@ -65,7 +65,13 @@
   buna bakar). Süre sınırlı, kaldığı yerden devam; `uretime_hazir` (hazır ya da 36 saat). Yeni komut/cron `hazirlik`
   (günde 3 kez). Test: 2 tur (150 sn'de kesildi, 2. turda bitti), ortalama seçilen puan 74.
 - **LLM varsayılanı "ucretsiz"**: yerel → Cloudflare → NVIDIA → OpenRouter → PC; Claude yalnızca açıkça seçilirse.
-- Testler: 40.
+- **Kalite Denetçisi + onarım + birbirine öğretme** (`denetci.py`): ffmpeg tek geçiş ölçüm (LUFS, tepe, sessizlik,
+  siyah, donuk, süre) + hazırlık görsel puanı → karne (`kalite.csv`). `denetle_ve_onar` orkestratörde uzun/Shorts
+  üretimini sarar; onarım yolu Thompson ile seçilir, deneyim `onarim.json` (kanal klasörü, tüm kanallardan okunur);
+  ertelenen onarımlar `hazirlik.yeniden_hazirla` (ek aday / katı metin) + `Ertele`. Kanallar arası deney ödüncü
+  (`optimizasyon.kanallar_arasi`, %15). Yeni deneyler gorsel_stili, muzik. `muhendis.kalite_dersleri`.
+  Gerçek örnek videolar 100/100 geçti.
+- Testler: 42.
 
 ## Sıradaki işler
 1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):

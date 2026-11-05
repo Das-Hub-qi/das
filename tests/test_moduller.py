@@ -609,3 +609,35 @@ def test_hazirlik_shorts_kurallari_ve_ses_onbellegi(tmp_path):
     assert (tmp_path / "a.json").exists()
     s2 = m05_seslendirme.seslendir(a, "Merhaba dünya.", tmp_path / "a.mp3")   # önbellekten
     assert s2["sure"] == s1["sure"] and s2["kelimeler"] == [tuple(k) for k in s1["kelimeler"]]
+
+
+def test_kalite_denetcisi_olcum_ve_kanallar_arasi_onarim_ogrenimi(tmp_path):
+    import subprocess
+
+    from otonom import denetci
+    from otonom.ayarlar import KANALLAR_VERI, json_yaz, yukle
+    v = tmp_path / "v.mp4"   # 3 sn siyah + sessiz: siyah kare, sessizlik ve düşük ses kusuru beklenir
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=3",
+                    "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "3", "-shortest", str(v)], check=True)
+    o = denetci.olc(v)
+    assert o["sure"] > 2.9 and o["siyah"]
+    a = yukle(deneme=True)
+    karne = denetci.denetle(a, v, "yok", "shorts")
+    assert "siyah_kare" in karne["kusurlar"] and karne["puan"] < 80
+    # başka bir kanalın deneyimi: siyah karede "klasik_hareket" hep işe yaramış → bu kanal da onu seçmeli
+    json_yaz(KANALLAR_VERI / "baska" / "onarim.json",
+             {"gozlemler": {"siyah_kare": [["klasik_hareket", 1.0, "2026-11-01", "baska"]] * 20 +
+                                          [["yeniden_uret", 0.0, "2026-11-01", "baska"]] * 20}})
+    secimler = [denetci.onarim_sec(a, "siyah_kare", set()) for _ in range(20)]
+    assert secimler.count("klasik_hareket") >= 17
+
+
+def test_kanallar_arasi_oduncleme():
+    from datetime import date
+
+    from otonom import optimizasyon
+    kollar = ["soru", "nasil"]
+    post = optimizasyon.posterior([], kollar, 45)
+    diger = [["nasil", 1.0, "2026-11-01"]] * 30
+    yeni = optimizasyon.kanallar_arasi(post, diger, kollar, 45, date(2026, 11, 5), 0.15)
+    assert yeni["nasil"][0] > yeni["soru"][0] and yeni["soru"] == post["soru"]

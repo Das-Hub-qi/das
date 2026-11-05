@@ -66,6 +66,19 @@ def _deneyler(ayar: Ayarlar) -> dict[str, list]:
     return {k: v for k, v in d.items() if v}
 
 
+def diger_kanallarin_gozlemleri(ayar: Ayarlar) -> dict[str, list]:
+    """Kanallar arası öğrenme: diğer kanalların deney gözlemleri (başlık stili, görsel stili, müzik, uzunluk...)."""
+    from .ayarlar import KANALLAR_VERI
+    havuz: dict[str, list] = {}
+    for dosya in KANALLAR_VERI.glob("*/optimizasyon.json"):
+        if dosya.parent.name == ayar.kanal:
+            continue
+        for ad, liste in ((json_oku(dosya, {}) or {}).get("gozlemler") or {}).items():
+            if ad not in ("nis", "kaynak"):  # konu ve kaynak kanala özeldir; biçim bilgisi ortaktır
+                havuz.setdefault(ad, []).extend(liste)
+    return havuz
+
+
 def baslangic_odagi(ayar: Ayarlar, kodlar: list[str], nis_gozlemleri: list) -> list[str]:
     """Yeni kanalda (ilk N uzun video) tek konuya odaklan: YouTube kanalın kime hitap ettiğini çabuk öğrenir.
     Seçilen niş: şimdiye kadar en iyi giden; veri yoksa ayar dosyasındaki ilk niş."""
@@ -93,6 +106,7 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
 
     kodlar = [n["kod"] for n in ayar.nisler if nis_analizi.get(n["kod"])]
     kodlar = baslangic_odagi(ayar, kodlar, ogren.get("nis", []))
+    diger = diger_kanallarin_gozlemleri(ayar)
     oncelik = oncelikli[:adet]
     dagilim = dagit(kodlar, optimizasyon.yasli(ogren.get("nis", []), bugun), adet - len(oncelik), rng, yo)
     if not dagilim and not oncelik:
@@ -103,7 +117,8 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
     deneyler = _deneyler(ayar)
     slotlar = [{"nis": o["nis"], "oncelikli": o["konu"]} for o in oncelik] + [{"nis": k} for k in dagilim]
     for sl in slotlar:  # konuya göre (niş bazlı, hiyerarşik) deney seçimi
-        sl["deney"] = optimizasyon.deney_secimleri(deneyler, ogren, rng, yo, bugun, sl["nis"])
+        sl["deney"] = optimizasyon.deney_secimleri(deneyler, ogren, rng, yo, bugun, sl["nis"], diger,
+                                                   float(ayar["optimizasyon"].get("kanallar_arasi_oduncleme", 0.15)))
 
     kaynak_turleri = sorted({a.get("kaynak", "youtube_oneri") for liste in nis_analizi.values() for a in liste})
     yayinlanan = [x["baslik"] for x in csv_oku(VERI / "yayinlananlar.csv")][-200:]

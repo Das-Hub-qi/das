@@ -61,6 +61,21 @@ Pazartesi 13:37 ─ (Claude toplu işi kullanılıyorsa) senaryoları alır ve �
 Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklifler, link tıklamaları, siteler
 ```
 
+**🩺 Kendini denetleyen ve onaran sistem (tamamen yerel):**
+- **Kalite Denetçisi:** Her video yayından önce muayene edilir ve 100 üzerinden karne alır. Bakılanlar: ses düzeyi
+  (YouTube standardı -14 LUFS), ses kırpması, uzun sessizlik, siyah kare, donmuş görüntü, Shorts süresi ve
+  görsellerin cümleye uygunluğu.
+- **Onarım:** Kusur varsa sistem onarır ve yeniden üretir. Örnekler: klasik harekete geçmek, seslendirmeyi yenilemek,
+  Shorts'u hızlandırmak, zayıf görseller için hazırlığa geri dönüp daha fazla aday üretmek, metni kısaltmak.
+  Her kusurun birkaç çözüm yolu vardır; hangisinin gerçekten işe yaradığı denenerek öğrenilir.
+- **Birbirine öğretme:**
+  - Bir kanalda işe yarayan onarım diğer kanallara da geçer.
+  - Kanallar biçim deneylerinde (başlık stili, görsel stili, müzik, uzunluk) birbirinin deneyiminden %15 ödünç alır.
+  - Kalite Denetçisi'nin sık bulduğu kusurlar Öğrenme Mühendisi'ne ders olur ve kök nedenden çözülür. Örneğin görseller
+    sık zayıfsa aday sayısı artırılır, Shorts sık uzunsa anlatım hızlandırılır.
+- **Yeni deneyler:** Görsel stili (sinematik / belgesel / canlı renkli) ve müzik ruh hali de izlenmeye göre öğrenilir.
+  Kazanan bulunca mühendis havuzdan yeni stiller dener. Sonuçlar DURUM.md'deki "🩺 Kalite Denetçisi" bölümünde görünür.
+
 **🧩 Hazırlık aşaması (videonun parçaları ayrı zamanlarda, acele etmeden):**
 - Senaryodan sonra video hemen birleştirilmez. Hazırlık günde 3 kez çalışır, her seferinde 25 dakika ilerler ve
   kaldığı yerden devam eder.

@@ -149,10 +149,22 @@ def nis_posterior(ham: list, kollar: list, yari_omur: float, bugun: date, nis: s
                 ozel[k][2] + oduncleme * genel[k][2]) for k in genel}
 
 
+def kanallar_arasi(post: dict, diger: list, kollar: list, yari_omur: float, bugun: date, oran: float) -> dict:
+    """Kanallar birbirine öğretir: diğer kanalların deneyimi küçük bir oranla (ör. %15) önsel bilgiye eklenir.
+    Yeni kanal boş başlamaz; kendi verisi biriktikçe kendi doğrusu baskın gelir."""
+    if not diger or oran <= 0:
+        return post
+    ortak = posterior(yasli(diger, bugun), kollar, yari_omur)
+    return {k: (post[k][0] + oran * (ortak[k][0] - 1), post[k][1] + oran * (ortak[k][1] - 1),
+                post[k][2] + oran * ortak[k][2]) for k in post}
+
+
 def deney_secimleri(deneyler: dict[str, list], ham_gozlem: dict, rng: random.Random, yari_omur: float,
-                    bugun: date, nis: str | None = None) -> dict:
-    """Her deney için (konuya göre) Thompson ile bir kol seçer. ham_gozlem: optimizasyon.json gözlemleri."""
-    return {ad: thompson_sec(nis_posterior(ham_gozlem.get(ad, []), kollar, yari_omur, bugun, nis), rng)
+                    bugun: date, nis: str | None = None, diger: dict | None = None, oran: float = 0.0) -> dict:
+    """Her deney için (konuya göre) Thompson ile bir kol seçer. ham_gozlem: optimizasyon.json gözlemleri.
+    diger: başka kanalların gözlemleri (kanallar arası öğrenme)."""
+    return {ad: thompson_sec(kanallar_arasi(nis_posterior(ham_gozlem.get(ad, []), kollar, yari_omur, bugun, nis),
+                                            (diger or {}).get(ad, []), kollar, yari_omur, bugun, oran), rng)
             for ad, kollar in deneyler.items() if kollar}
 
 

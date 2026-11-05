@@ -370,7 +370,7 @@ def uzun_video(ayar: Ayarlar, kod: str, icerik: dict, sesler: list[dict], gorsel
     anlatim = anlatim_izi([(s.get("ses"), s["sure"]) for s in sahneler], CIKTI / kod / "anlatim.wav")
     final = CIKTI / kod / "final_video.mp4"
     ses_karistir(ayar, ham, anlatim, final, kod, gecis_anlari,
-                 ayar.nis(icerik["plan"]["nis"]).get("ruh_hali"))
+                 (icerik["plan"].get("deney") or {}).get("muzik") or ayar.nis(icerik["plan"]["nis"]).get("ruh_hali"))
     for gecici in [*klasor.glob("*.mp4"), ham, anlatim]:  # ara dosyalar diski doldurmasın
         gecici.unlink(missing_ok=True)
     log.info("Uzun video hazır: %s (%.0f sn, %d sahne, %d geçiş)", final, t, len(sahneler), len(gecis_anlari))

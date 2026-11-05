@@ -128,6 +128,7 @@ class Ayarlar:
 # Ayar dosyasında eksik/silinmiş bir satır sistemi durdurmasın diye her ayarın varsayılanı burada.
 VARSAYILAN: dict[str, Any] = {
     "saat_dilimi": "Europe/Istanbul",
+    "denetim": {"acik": True, "gecme_puani": 80, "en_fazla_onarim": 2, "zayif_gorsel_esigi": 50},
     "hazirlik": {"acik": True, "aday_sayisi": 3, "dakika_siniri": 25, "en_fazla_saat": 36},
     "llm": {"nvidia_modeli": "meta/llama-3.3-70b-instruct",
             "openrouter_modeli": "meta-llama/llama-3.3-70b-instruct:free", "saglayici": "ucretsiz", "yerel_model": "unsloth/gemma-4-E2B-it-GGUF",
@@ -149,7 +150,10 @@ VARSAYILAN: dict[str, Any] = {
     "optimizasyon": {"yari_omur_gun": 45, "benzerlik_esigi": 0.6,
                      "deneyler": {"baslik_stili": ["soru", "sayili_liste", "nasil", "carpici_gercek"],
                                   "hedef_kelime": [800, 1100, 1400],
-                                  "yayin_saati": ["12:00", "18:00", "20:30"]}},
+                                  "yayin_saati": ["12:00", "18:00", "20:30"],
+                                  "gorsel_stili": ["sinematik", "belgesel", "canli_renkli"],
+                                  "muzik": ["merakli", "enerjik", "sakin", "gizemli"]},
+                     "kanallar_arasi_oduncleme": 0.15},
     "cloudflare": {"web_analytics_token": "", "adsense_yayinci_id": ""},
     "teklifler": {"otomatik_yanit": False},
     "muhendis": {"otomatik_uygula": True, "ders_cikar": True, "github_issue": True, "kilitli": []},

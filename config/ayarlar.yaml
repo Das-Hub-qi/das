@@ -50,6 +50,13 @@ youtube:
   altyazi_yukle: true        # SRT altyazıyı YouTube'a yükler (izlenme süresini artırır)
   sentetik_medya_beyani: false  # gerçekçi yapay görüntü/insan kullanırsanız true yapın
 
+# --- Kalite Denetçisi: her video yayından önce muayene edilir, kusur varsa onarılır ---
+denetim:
+  acik: true
+  gecme_puani: 80          # bunun altındaki videolar onarılır
+  en_fazla_onarim: 2       # video başına en fazla onarım denemesi
+  zayif_gorsel_esigi: 50   # görsellerin ortalama uygunluk puanı bunun altındaysa daha fazla aday üretilir
+
 # --- Hazırlık: video birleştirilmeden önce parçalar ayrı zamanlarda, acele etmeden hazırlanır ---
 # Her görsel yuvası için birkaç aday üretilir, yerel modelle (uygunluk + netlik) puanlanır, en iyisi seçilir.
 # Günde birkaç kez çalışır; hazır olan içerik montaja geçer, en fazla "en_fazla_saat" beklenir.
@@ -108,6 +115,9 @@ optimizasyon:
     baslik_stili: ["soru", "sayili_liste", "nasil", "carpici_gercek"]
     hedef_kelime: [800, 1100, 1400]          # video uzunluğu (~5, ~7, ~9 dk)
     yayin_saati: ["12:00", "18:00", "20:30"] # yalnızca gizlilik "zamanla" iken denenir
+    gorsel_stili: ["sinematik", "belgesel", "canli_renkli"]   # yapay zekâ görsellerinin tarzı (izlenmeyle öğrenilir)
+    muzik: ["merakli", "enerjik", "sakin", "gizemli"]         # uzun videonun fon müziği ruh hali
+  kanallar_arasi_oduncleme: 0.15   # kanallar birbirinden öğrenir: diğer kanalların deneyiminden %15 ödünç
 
 # --- Öğrenme Mühendisi (sistemi her hafta kendi verisiyle geliştirir) ---------
 # Öğrendiği ayarları veri/ogrenilen_ayarlar.yaml'a yazar (bu dosyaya dokunmaz). Silerseniz sıfırlanır.

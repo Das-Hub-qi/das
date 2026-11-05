@@ -118,12 +118,20 @@ def _kaydet_yayin(ayar: Ayarlar, kod: str, icerik: dict, tur: str, sira: int, vi
 
 
 def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
+    from . import denetci
     klasor = CIKTI / kod
-    sesler = [m05_seslendirme.seslendir(ayar, s["metin"], klasor / "ses" / f"{i:03d}.mp3", i, len(icerik["sahneler"]))
-              for i, s in enumerate(icerik["sahneler"])]
-    materyal = m06_materyal.topla(ayar, kod, icerik)
-    sahne_gorselleri = [m for m in materyal if "sahne" in m]
-    sonuc = m07_montaj.uzun_video(ayar, kod, icerik, sesler, sahne_gorselleri)
+
+    def uret(a: Ayarlar) -> dict:
+        sesler_ = [m05_seslendirme.seslendir(a, s["metin"], klasor / "ses" / f"{i:03d}.mp3", i, len(icerik["sahneler"]))
+                   for i, s in enumerate(icerik["sahneler"])]
+        materyal_ = m06_materyal.topla(a, kod, icerik)
+        gorseller_ = [m for m in materyal_ if "sahne" in m]
+        return {**m07_montaj.uzun_video(a, kod, icerik, sesler_, gorseller_),
+                "sesler": sesler_, "materyal": materyal_, "gorseller": gorseller_}
+
+    # Kalite Denetçisi: yayından önce muayene; kusur varsa öğrenilmiş en iyi yolla onar
+    sonuc, _ = denetci.denetle_ve_onar(ayar, kod, "uzun", 0, uret, uret(ayar))
+    sesler, materyal, sahne_gorselleri = sonuc["sesler"], sonuc["materyal"], sonuc["gorseller"]
 
     # Altyazı: sahne başlangıç zamanlarına göre kaydırılmış kelimeler
     kelimeler, t = [], float(ayar["video"]["intro_saniye"])
@@ -154,34 +162,42 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     sh = icerik["shorts"][j]
     klasor = CIKTI / kod
     (klasor / "gorseller").mkdir(parents=True, exist_ok=True)
-    parcalar = sh.get("parcalar") or m07_montaj.shorts_parcala(sh["metin"], sh["gorsel_arama"])
-    sesler = [m05_seslendirme.seslendir(ayar, p["metin"], klasor / "ses" / f"shorts_{j}_{k:02d}.mp3", k,
-                                        len(parcalar), ek_hiz=8) for k, p in enumerate(parcalar)]
-    kullanilan: set[str] = set()
-    bilgiler = []
-    yedekler = [p for p in sorted((klasor / "gorseller").glob("*.jpg")) if "shorts" not in p.name]
-    for k, p in enumerate(parcalar):
-        sorgu = p["gorsel_arama"] or sh["gorsel_arama"]
-        video = m06_materyal.video_bul(ayar, sorgu, klasor / "gorseller" / f"shorts_{j}_{k:02d}.mp4", kullanilan,
-                                       en_kisa=sesler[k]["sure"])
-        if video:  # gerçek hareketli görüntü (Pexels) varsa önce o
-            bilgiler.append(video)
-            continue
-        bilgi = m06_materyal.gorsel_bul(ayar, sorgu,
-                                        klasor / "gorseller" / f"shorts_{j}_{k:02d}.jpg", kullanilan,
-                                        icerik["plan"]["nis"], dikey=True, yedek_yazi="")
-        bilgiler.append(bilgi)
-    # Yazılı kart Shorts'ta kötü görünür: en yakın gerçek görsel (farklı kadrajla) ya da uzun videonun görseli
-    iyiler = [b for b in bilgiler if b["kaynak"] != "Otomatik kart"]
-    for k, bilgi in enumerate(bilgiler):
-        if bilgi["kaynak"] == "Otomatik kart":
-            if yedekler:
-                bilgiler[k] = {**bilgi, "dosya": str(yedekler[(j * 7 + k) % len(yedekler)])}
-            elif iyiler:
-                bilgiler[k] = {**bilgi, "dosya": iyiler[k % len(iyiler)]["dosya"]}
-            else:
-                gorsel.yazi_karti("", Path(bilgi["dosya"]), 1080, 1920, gorsel.renk(icerik["plan"]["nis"]))
-    shorts = m07_montaj.shorts_video(ayar, kod, j, sh, sesler, [Path(b["dosya"]) for b in bilgiler])
+    from . import denetci
+
+    def uret(a: Ayarlar) -> dict:
+        parcalar = sh.get("parcalar") or m07_montaj.shorts_parcala(sh["metin"], sh["gorsel_arama"])
+        sesler = [m05_seslendirme.seslendir(a, p["metin"], klasor / "ses" / f"shorts_{j}_{k:02d}.mp3", k,
+                                            len(parcalar), ek_hiz=int(a["ses"].get("shorts_ek_hiz", 8)))
+                  for k, p in enumerate(parcalar)]
+        kullanilan: set[str] = set()
+        bilgiler = []
+        yedekler = [p for p in sorted((klasor / "gorseller").glob("*.jpg")) if "shorts" not in p.name]
+        for k, p in enumerate(parcalar):
+            sorgu = p["gorsel_arama"] or sh["gorsel_arama"]
+            video = m06_materyal.video_bul(a, sorgu, klasor / "gorseller" / f"shorts_{j}_{k:02d}.mp4", kullanilan,
+                                           en_kisa=sesler[k]["sure"])
+            if video:  # gerçek hareketli görüntü (Pexels) varsa önce o
+                bilgiler.append(video)
+                continue
+            bilgi = m06_materyal.gorsel_bul(a, sorgu,
+                                            klasor / "gorseller" / f"shorts_{j}_{k:02d}.jpg", kullanilan,
+                                            icerik["plan"]["nis"], dikey=True, yedek_yazi="")
+            bilgiler.append(bilgi)
+        # Yazılı kart Shorts'ta kötü görünür: en yakın gerçek görsel (farklı kadrajla) ya da uzun videonun görseli
+        iyiler = [b for b in bilgiler if b["kaynak"] != "Otomatik kart"]
+        for k, bilgi in enumerate(bilgiler):
+            if bilgi["kaynak"] == "Otomatik kart":
+                if yedekler:
+                    bilgiler[k] = {**bilgi, "dosya": str(yedekler[(j * 7 + k) % len(yedekler)])}
+                elif iyiler:
+                    bilgiler[k] = {**bilgi, "dosya": iyiler[k % len(iyiler)]["dosya"]}
+                else:
+                    gorsel.yazi_karti("", Path(bilgi["dosya"]), 1080, 1920, gorsel.renk(icerik["plan"]["nis"]))
+        shorts_ = m07_montaj.shorts_video(a, kod, j, sh, sesler, [Path(b["dosya"]) for b in bilgiler])
+        return {"video": shorts_, "bilgiler": bilgiler}
+
+    sonuc, _ = denetci.denetle_ve_onar(ayar, kod, "shorts", j, uret, uret(ayar))
+    shorts, bilgiler = sonuc["video"], sonuc["bilgiler"]
     baslik = f"{sh['baslik'][:90]} #Shorts"
     aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], bilgiler, shorts=True)
     aciklama = buyume.aciklamaya_ekle(aciklama, buyume.ic_baglanti(ayar, icerik["plan"]["nis"], kod, "shorts"))
@@ -228,7 +244,11 @@ def uretim_asamasi(ayar: Ayarlar) -> int:
                 vid = _uzun_uret(ayar, is_["kod"], icerik)
             else:
                 vid = _shorts_uret(ayar, is_["kod"], icerik, is_["sira"])
-        except Exception:
+        except Exception as e:
+            from .denetci import Ertele
+            if isinstance(e, Ertele):  # kalite onarımı hazırlıkta yapılacak; iş beklemede kalır
+                log.info("Yükleme ertelendi: %s", e)
+                continue
             log.error("Üretim hatası (%s): %s", is_["kod"], traceback.format_exc())
             is_["hata"] = is_.get("hata", 0) + 1
             if is_["hata"] >= 3:

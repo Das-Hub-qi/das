@@ -118,6 +118,12 @@ def _yeni_kol(ad: str, en_iyi: str, kollar: list[str]):
         return None
     if ad == "baslik_stili":                                  # havuzdan denenmemiş stil
         return next((s for s in opt.BASLIK_STILLERI if s not in kollar), None)
+    if ad == "gorsel_stili":
+        from .hazirlik import STILLER
+        return next((s for s in STILLER if s not in kollar), None)
+    if ad == "muzik":
+        from .ses_tasarimi import RUH_HALLERI
+        return next((s for s in RUH_HALLERI if s not in kollar), None)
     return None
 
 
@@ -335,6 +341,25 @@ def model_gozcusu(ayar: Ayarlar, bugun: date) -> list[str]:
 
 # --------------------------------------------------------------- ana akış
 
+def kalite_dersleri(ayar: Ayarlar, ogrenilen: dict) -> list[str]:
+    """Kalite Denetçisi'nin bulgularından öğren: sık tekrarlayan kusuru kök nedeninden çöz (modüller birbirine öğretir)."""
+    from . import denetci
+    sik = denetci.sik_kusurlar(30)
+    degisiklik = []
+    if sik.get("zayif_gorsel", 0) + sik.get("gorselsiz_yuva", 0) >= 3:
+        aday = int(ayar["hazirlik"]["aday_sayisi"])
+        if aday < 6:
+            _ayarla(ogrenilen, "hazirlik.aday_sayisi", aday + 1)
+            degisiklik.append(f"Görsel uygunluğu sık düşük → yuva başına aday {aday} → {aday + 1}")
+    if sik.get("siyah_kare", 0) + sik.get("donuk_goruntu", 0) >= 3 and ayar["video"].get("paralaks", True):
+        _ayarla(ogrenilen, "video.paralaks", False)
+        degisiklik.append("2.5D harekette sık görüntü kusuru → bu kanalda klasik harekete geçildi")
+    if sik.get("shorts_uzun", 0) >= 2:
+        _ayarla(ogrenilen, "ses.shorts_ek_hiz", min(25, int(ayar["ses"].get("shorts_ek_hiz", 8)) + 6))
+        degisiklik.append("Shorts sık 60 sn'yi aşıyor → Shorts anlatımı hızlandırıldı")
+    return degisiklik
+
+
 def calistir(ayar: Ayarlar) -> list[str]:
     bugun = ayar.simdi.date()
     ogrenilen = _ogrenilen_oku()
@@ -342,6 +367,7 @@ def calistir(ayar: Ayarlar) -> list[str]:
     degisiklik += deneyleri_evrimlestir(ayar, ogrenilen, bugun)
     degisiklik += uyum_hizini_ayarla(ayar, ogrenilen, bugun)
     degisiklik += tohumlari_evrimlestir(ayar, ogrenilen)
+    degisiklik += kalite_dersleri(ayar, ogrenilen)
     onarim, sorunlar = uyarilardan_onar(ayar, ogrenilen)
     degisiklik += onarim
     if ayar["muhendis"]["otomatik_uygula"] and degisiklik:
