@@ -1,0 +1,81 @@
+# ============================================================
+# DİJİTAL VARLIKLAR — alan adları, kanal, nişler, ortaklık linkleri
+# Bu dosyayı kendi bilgilerinize göre düzenleyin.
+# ============================================================
+
+youtube_kanallari:
+  - ad: "Ana Kanal"
+    kanal_id: ""             # YouTube Studio > Ayarlar > Kanal > Gelişmiş'te "UC..." ile başlar
+
+# Her nişin bir "ev sahibi" alan adı vardır: videolar trafiği o siteye yollar,
+# site de videolara geri yollar (çift yönlü büyüme, ek maliyet yok).
+nisler:
+  - kod: "noro"
+    ad: "Nörobilim ve Beyin Sağlığı"
+    alan_adi: "trustneurohub.com.tr"
+    hedef_kitle: "Kendini geliştirmek isteyen 20-45 yaş arası meraklı yetişkinler"
+    tohum_kelimeler:
+      - "beyin sağlığı"
+      - "odaklanma nasıl artırılır"
+      - "dopamin"
+      - "uyku ve hafıza"
+      - "nöropazarlama"
+      - "stres beyin"
+    ortaklik_linkleri:       # "kısa_ad: hedef_url". Açıklamaya otomatik eklenir.
+      # kitap-onerisi: "https://www.amazon.com.tr/...?tag=SIZIN-ETIKETINIZ"
+
+  - kod: "bilisim"
+    ad: "Bilişim, Otomasyon ve Yapay Zekâ"
+    alan_adi: "okyanusbilisimtr.com"
+    hedef_kitle: "Yapay zekâ ve otomasyonla işini kolaylaştırmak isteyen çalışanlar, öğrenciler, KOBİ'ler"
+    tohum_kelimeler:
+      - "yapay zeka ile para kazanma"
+      - "python otomasyon"
+      - "ücretsiz yapay zeka araçları"
+      - "excel otomasyon"
+      - "bulut bilişim nedir"
+    ortaklik_linkleri:
+      # python-kursu: "https://www.udemy.com/...?referralCode=..."
+
+  - kod: "turizm"
+    ad: "Turizm ve Seyahat"
+    alan_adi: ""             # turizm alan adınızı buraya yazın (ör. "ornekturizm.com")
+    hedef_kitle: "Türkiye içinde bütçe dostu tatil arayan aileler ve gezginler"
+    tohum_kelimeler:
+      - "ucuz tatil"
+      - "kapadokya gezi rehberi"
+      - "her şey dahil otel"
+      - "karadeniz turu"
+    ortaklik_linkleri:
+      # otel-ara: "https://... (otel/tur ortaklık programı linkiniz)"
+
+# Alan adı satış / kiralama bilgileri
+alan_adlari:
+  - ad: "trustneurohub.com.tr"
+    sektor: "Nörobilim, psikoloji, sağlık teknolojisi, nöropazarlama"
+    hedef_alici: "Psikoloji klinikleri, nöropazarlama ajansları, sağlık teknolojisi girişimleri"
+    mod: "site_ve_satis"     # site_ve_satis | sadece_satis | sadece_site | park
+    satis_fiyati_try: 0      # 0 = sistem önerir
+    kiralama_aylik_try: 0
+    aktif: true
+
+  - ad: "okyanusbilisimtr.com"
+    sektor: "Bilişim, yazılım, otomasyon, bulut, yapay zekâ"
+    hedef_alici: "Yazılım ajansları, bilişim danışmanlık firmaları, BT tedarikçileri"
+    mod: "site_ve_satis"
+    satis_fiyati_try: 0
+    kiralama_aylik_try: 0
+    aktif: true
+
+  # Turizm alan adlarınızı aşağıya ekleyin:
+  # - ad: "ornekturizm.com"
+  #   sektor: "Turizm, seyahat, otel, rezervasyon"
+  #   hedef_alici: "Tur operatörleri, oteller, seyahat acenteleri"
+  #   mod: "site_ve_satis"
+  #   satis_fiyati_try: 0
+  #   kiralama_aylik_try: 0
+  #   aktif: true
+
+iletisim:
+  eposta: ""                 # teklif e-postalarının yönlendirileceği adres (Cloudflare Email Routing)
+  kisa_link_alan_adi: "okyanusbilisimtr.com"   # ortaklık linkleri bu alan adından yönlenir: /git/<kisa_ad>

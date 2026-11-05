@@ -1,0 +1,180 @@
+"""MODÜL 11 — Performans analizi ve LABORATUVAR.
+
+Orijinal formül (Görüntülenme×0.5 + CTR×0.3 + Süre×0.2) farklı ölçekleri topladığı için
+izlenme sayısı her şeyi ezer. Burada her metrik önce kanal içi YÜZDELİK SIRAYA
+çevrilir (0-100), sonra ağırlıklandırılır; Shorts ve uzun videolar ayrı karşılaştırılır.
+Sonuç, nişlerin üretim payını belirler (Modül 3) -> sistem kendi kendini iyileştirir.
+Veriler Google Sheets yerine git'teki CSV'de tutulur (ek hesap/izin gerekmez).
+"""
+from __future__ import annotations
+
+import statistics
+from collections import defaultdict
+from datetime import date, datetime
+
+import requests
+
+from .ayarlar import VERI, Ayarlar, csv_ekle, csv_oku, gizli, json_oku, json_yaz, log, ozet_yaz
+
+METRIK_ALANLARI = ["tarih", "youtube_id", "kod", "nis", "tur", "goruntulenme", "begeni", "yorum",
+                   "izlenme_dakika", "ort_izlenme_sn", "ort_izlenme_yuzde", "abone_kazanimi"]
+
+
+def _istatistik(idler: list[str]) -> dict[str, dict]:
+    """Herkese açık sayılar: 50 video başına 1 kota birimi."""
+    anahtar = gizli("YOUTUBE_API_KEY")
+    sonuc: dict[str, dict] = {}
+    for i in range(0, len(idler), 50):
+        parca = idler[i:i + 50]
+        try:
+            if anahtar:
+                r = requests.get("https://www.googleapis.com/youtube/v3/videos", timeout=20,
+                                 params={"part": "statistics", "id": ",".join(parca), "key": anahtar}).json()
+                ogeler = r.get("items", [])
+            else:
+                from .m09_youtube_yukleme import kimlik_var, servis
+                if not kimlik_var():
+                    return {}
+                ogeler = servis().videos().list(part="statistics", id=",".join(parca)).execute().get("items", [])
+            for o in ogeler:
+                s = o["statistics"]
+                sonuc[o["id"]] = {"goruntulenme": int(s.get("viewCount", 0)), "begeni": int(s.get("likeCount", 0)),
+                                  "yorum": int(s.get("commentCount", 0))}
+        except Exception as e:  # ağ/kota hatası analizi durdurmasın
+            log.warning("İstatistik alınamadı: %s", e)
+    return sonuc
+
+
+def _analitik(idler: list[str], baslangic: str) -> dict[str, dict]:
+    """İzlenme süresi metrikleri (YouTube Analytics API, OAuth gerekir; yoksa atlanır)."""
+    from .m09_youtube_yukleme import kimlik_var, servis
+    if not (idler and kimlik_var()):
+        return {}
+    try:
+        cevap = servis("youtubeAnalytics", "v2").reports().query(
+            ids="channel==MINE", startDate=baslangic, endDate=date.today().isoformat(),
+            metrics="estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained",
+            dimensions="video", filters="video==" + ",".join(idler[:200]), maxResults=200).execute()
+        return {r[0]: {"izlenme_dakika": r[1], "ort_izlenme_sn": r[2], "ort_izlenme_yuzde": r[3],
+                       "abone_kazanimi": r[4]} for r in cevap.get("rows", [])}
+    except Exception as e:
+        log.warning("Analytics alınamadı (refresh token'da yt-analytics izni olmalı): %s", e)
+        return {}
+
+
+def yuzdelik(degerler: list[float]) -> list[float]:
+    """Her değerin listede kaçıncı yüzdelikte olduğunu (0-100) döner; eşitlere ortalama sıra."""
+    if len(degerler) <= 1:
+        return [50.0] * len(degerler)
+    sirali = sorted(degerler)
+    sonuc = []
+    for d in degerler:
+        alt = sum(1 for x in sirali if x < d)
+        esit = sum(1 for x in sirali if x == d)
+        sonuc.append(100 * (alt + (esit - 1) / 2) / (len(degerler) - 1))
+    return sonuc
+
+
+def puanla(videolar: list[dict]) -> list[dict]:
+    """Aynı türdeki (uzun/shorts) videolar arasında 0-100 performans puanı."""
+    for tur in {v["tur"] for v in videolar}:
+        grup = [v for v in videolar if v["tur"] == tur]
+        hiz = yuzdelik([v["goruntulenme"] / max(1, v["yas_gun"]) for v in grup])
+        tutma = yuzdelik([float(v.get("ort_izlenme_yuzde") or 0) for v in grup])
+        etk = yuzdelik([(v["begeni"] + 2 * v["yorum"]) / max(1, v["goruntulenme"]) for v in grup])
+        tutma_var = any(v.get("ort_izlenme_yuzde") for v in grup)
+        for v, h, t, e in zip(grup, hiz, tutma, etk):
+            v["skor"] = round(0.4 * h + 0.4 * t + 0.2 * e if tutma_var else 0.65 * h + 0.35 * e, 1)
+    return videolar
+
+
+def nis_agirliklari(videolar: list[dict], nis_kodlari: list[str]) -> dict[str, float]:
+    """Ortalama puanı yüksek nişe daha fazla üretim payı; veri azsa ağırlık 1'e yakın kalır."""
+    grup = defaultdict(list)
+    for v in videolar:
+        grup[v["nis"]].append(v["skor"])
+    agirlik = {}
+    for k in nis_kodlari:
+        p = grup.get(k, [])
+        guven = min(1.0, len(p) / 6)              # 6 videodan sonra tam güven
+        ort = statistics.mean(p) if p else 50.0
+        agirlik[k] = round((1 - guven) * 1.0 + guven * (0.25 + 1.5 * ort / 100), 3)
+    return agirlik
+
+
+def ortak_ozellikler(videolar: list[dict]) -> list[str]:
+    if len(videolar) < 6:
+        return ["Yeterli veri yok (en az 6 değerlendirilmiş video gerekir)."]
+    sirali = sorted(videolar, key=lambda v: -v["skor"])
+    ust, alt = sirali[:3], sirali[3:]
+    def ort(liste, f):
+        return statistics.mean(f(v) for v in liste)
+    bulgular = [
+        f"En iyi 3'ün nişleri: {', '.join(v['nis'] for v in ust)}",
+        f"Başlık uzunluğu: en iyiler {ort(ust, lambda v: len(v['baslik'])):.0f} karakter, diğerleri {ort(alt, lambda v: len(v['baslik'])):.0f}",
+        f"Başlıkta sayı: en iyilerde %{100 * ort(ust, lambda v: any(c.isdigit() for c in v['baslik'])):.0f}, diğerlerinde %{100 * ort(alt, lambda v: any(c.isdigit() for c in v['baslik'])):.0f}",
+        f"Soru başlığı: en iyilerde %{100 * ort(ust, lambda v: '?' in v['baslik']):.0f}, diğerlerinde %{100 * ort(alt, lambda v: '?' in v['baslik']):.0f}",
+    ]
+    sureler = [v for v in ust if v.get("sure_sn")]
+    if sureler:
+        bulgular.append(f"En iyilerin ortalama süresi: {ort(sureler, lambda v: float(v['sure_sn'])) / 60:.1f} dk")
+    return bulgular
+
+
+def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
+    yayin = [s for s in csv_oku(VERI / "yayinlananlar.csv")
+             if s.get("youtube_id") and not s["youtube_id"].startswith("DENEME")]
+    if not yayin:
+        log.info("Analiz: henüz yayınlanmış video yok.")
+        return {}
+    idler = [s["youtube_id"] for s in yayin]
+    ist = _istatistik(idler)
+    ilk = min(s["tarih"][:10] for s in yayin)
+    ana = _analitik([s["youtube_id"] for s in yayin if s["tur"] == "uzun"], ilk)
+    bugun = ayar.simdi.date()
+
+    videolar = []
+    for s in yayin:
+        v = {**s, **{"goruntulenme": 0, "begeni": 0, "yorum": 0}, **ist.get(s["youtube_id"], {}),
+             **ana.get(s["youtube_id"], {})}
+        v["yas_gun"] = (bugun - datetime.fromisoformat(s["tarih"]).date()).days
+        videolar.append(v)
+    if tam_rapor:  # haftalık anlık görüntü (depo küçük kalsın diye günlük değil)
+        csv_ekle(VERI / "metrikler.csv", [{**v, "tarih": bugun.isoformat()} for v in videolar], METRIK_ALANLARI)
+
+    # Laboratuvar tetikleyicisi: viral video -> devam videosu kuyruğa
+    oncelik = json_oku(VERI / "oncelikli_konular.json", [])
+    takip = {o.get("kaynak") for o in oncelik} | set(json_oku(VERI / "viral_takip.json", []))
+    for v in videolar:
+        if v["goruntulenme"] >= int(ayar["laboratuvar"]["viral_esik"]) and v["youtube_id"] not in takip:
+            oncelik.append({"nis": v["nis"], "konu": f"'{v['baslik']}' videosunun devamı / daha derin versiyonu",
+                            "kaynak": v["youtube_id"]})
+            takip.add(v["youtube_id"])
+            log.info("Viral video bulundu, devam videosu planlandı: %s", v["baslik"])
+    json_yaz(VERI / "oncelikli_konular.json", oncelik)
+    json_yaz(VERI / "viral_takip.json", sorted(t for t in takip if t))
+
+    olgun = [v for v in videolar if v["yas_gun"] >= int(ayar["laboratuvar"]["min_veri_gunu"])]
+    if not (tam_rapor and olgun):
+        return {"videolar": videolar}
+    puanla(olgun)
+    agirlik = nis_agirliklari(olgun, [n["kod"] for n in ayar.nisler])
+    json_yaz(VERI / "nis_agirliklari.json", agirlik)
+
+    sirali = sorted(olgun, key=lambda v: -v["skor"])
+    zayif = [v for v in sirali if v["yas_gun"] >= 28][-max(1, len(sirali) // 5):] if len(sirali) >= 5 else []
+    md = [f"# Laboratuvar Raporu — {bugun}", "",
+          "| Video | Tür | Niş | Görüntülenme | İzlenme % | Puan |", "|---|---|---|---|---|---|"]
+    md += [f"| [{v['baslik'][:50]}](https://youtu.be/{v['youtube_id']}) | {v['tur']} | {v['nis']} | "
+           f"{v['goruntulenme']} | {v.get('ort_izlenme_yuzde') or '-'} | {v['skor']} |" for v in sirali[:25]]
+    md += ["", "## En başarılı videoların ortak özellikleri", *[f"- {b}" for b in ortak_ozellikler(olgun)],
+           "", "## Niş üretim payları (gelecek hafta)", *[f"- {k}: {w}" for k, w in agirlik.items()]]
+    if zayif:
+        md += ["", "## Yeniden düzenlenecekler (başlık + küçük resim değiştirin; silmeyin, izlenme saatini korur)",
+               *[f"- {v['baslik']} — puan {v['skor']}" for v in zayif]]
+    md.append("\n> CTR (tıklama oranı) API'de yok: YouTube Studio > Analytics > Erişim sekmesinden bakın.")
+    rapor = "\n".join(md) + "\n"
+    (VERI / "raporlar").mkdir(exist_ok=True)
+    (VERI / "raporlar" / f"lab-{bugun}.md").write_text(rapor, encoding="utf-8")
+    ozet_yaz(rapor)
+    return {"videolar": videolar, "agirlik": agirlik}

@@ -1,0 +1,100 @@
+# Otonom sistem zamanlayıcısı — GitHub Actions ÜCRETSİZ katmanı.
+# Özel depoda ayda 2.000 dakika ücretsiz; bu sistem ayda yaklaşık 100-200 dakika kullanır.
+# Saatler UTC'dir (Türkiye = UTC+3). Dakikalar, GitHub'ın saat başı yoğunluğundan kaçmak için kaydırıldı.
+name: Otonom sistem
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"   # Pazartesi 09:17 — HAFTALIK döngü (analiz, plan, senaryo, siteler)
+    - cron: "7 4 * * *"    # Her gün 07:07 — GÜNLÜK döngü (üretim, yükleme, teklifler)
+    - cron: "37 10 * * 1"  # Pazartesi 13:37 — haftanın senaryoları hazır olunca üretim
+  workflow_dispatch:       # Actions sekmesinden elle çalıştırma
+    inputs:
+      komut:
+        description: "Çalıştırılacak komut"
+        type: choice
+        default: gunluk
+        options: [gunluk, haftalik, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+
+permissions:
+  contents: write          # veri/ klasöründeki sonuçları depoya kaydetmek için
+
+concurrency:
+  group: otonom            # iki çalıştırma aynı anda olmasın
+  cancel-in-progress: false
+
+jobs:
+  calistir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+      SMTP_SUNUCU: ${{ secrets.SMTP_SUNUCU }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_KULLANICI: ${{ secrets.SMTP_KULLANICI }}
+      SMTP_SIFRE: ${{ secrets.SMTP_SIFRE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Araçları kur (ffmpeg, yazı tipleri, Python paketleri)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
+          pip install -q -r requirements.txt
+
+      - name: Komutu belirle
+        id: komut
+        run: |
+          KOMUT="${{ github.event.inputs.komut }}"
+          if [ -z "$KOMUT" ]; then
+            if [ "${{ github.event.schedule }}" = "17 6 * * 1" ]; then KOMUT=haftalik; else KOMUT=gunluk; fi
+          fi
+          echo "ad=$KOMUT" >> "$GITHUB_OUTPUT"
+          echo "Komut: $KOMUT"
+
+      - name: Sistemi çalıştır
+        id: calis
+        run: python -m otonom ${{ steps.komut.outputs.ad }}
+
+      - name: Siteleri Cloudflare Pages'e yükle (yalnızca değişenler)
+        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: bash araclar/siteleri_yukle.sh
+
+      - name: Sonuçları depoya kaydet
+        if: always()
+        run: |
+          git config user.name "otonom-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add veri
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Otomatik veri güncellemesi ($(date -u +%F) ${{ steps.komut.outputs.ad }})"
+            git pull -q --rebase && git push -q
+          fi
+
+      - name: Elle yüklenecek videoları sakla (YouTube bağlantısı yoksa)
+        if: always() && hashFiles('cikti/ELLE_YUKLE') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: videolar-${{ github.run_number }}
+          retention-days: 3
+          if-no-files-found: ignore
+          path: |
+            cikti/*/final_video.mp4
+            cikti/*/shorts_*.mp4
+            cikti/*/thumbnail.jpg
+            cikti/*/metadata.json
+            cikti/*/altyazi.srt

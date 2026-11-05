@@ -1,0 +1,61 @@
+# ============================================================
+# GENEL AYARLAR — Otonom Gelir ve İçerik Sistemi
+# Gizli bilgiler (API anahtarları, şifreler) BURAYA YAZILMAZ.
+# Onlar GitHub > Settings > Secrets bölümüne eklenir (README'ye bakın).
+# ============================================================
+
+saat_dilimi: "Europe/Istanbul"
+
+# --- Yapay zekâ (metin üretimi) -------------------------------------------
+# En ucuz model: Claude Haiku 5.5 (1M token girdi 0,10 $ / çıktı 0,50 $).
+# Toplu işlem (batch) açıkken fiyat %50 daha ucuzdur; sonuç birkaç saat içinde gelir.
+llm:
+  model: "claude-haiku-5-5"
+  toplu_islem: true          # true = %50 ucuz, sonuç sonraki çalıştırmada alınır
+  senaryo_efor: "medium"     # low | medium | high  (yüksek = daha kaliteli, biraz daha pahalı)
+  kisa_is_efor: "low"        # plan, pitch gibi kısa işler
+
+# --- YouTube üretim hattı --------------------------------------------------
+youtube:
+  haftalik_uzun_video: 3     # her hafta üretilecek uzun video sayısı
+  video_basina_shorts: 2     # her uzun videodan kesilecek Shorts sayısı (bedava ek içerik)
+  hedef_kelime: 1100         # ~7-8 dakika (8 dk üstü ara reklam imkânı verir)
+  kategori_id: "27"          # 27 = Eğitim, 28 = Bilim ve Teknoloji
+  # "private" = siz kontrol edip yayınlarsınız (önerilen, insan denetimi kuralı).
+  # "zamanla" = videolar aşağıdaki gün/saatlerde otomatik herkese açık olur.
+  gizlilik: "private"
+  yayin_gunleri: ["sali", "persembe", "cumartesi"]
+  yayin_saati: "18:00"
+  altyazi_yukle: true        # SRT altyazıyı YouTube'a yükler (izlenme süresini artırır)
+  sentetik_medya_beyani: false  # gerçekçi yapay görüntü/insan kullanırsanız true yapın
+
+ses:
+  ses_adi: "tr-TR-AhmetNeural"   # alternatif: "tr-TR-EmelNeural"
+  hiz: "+5%"                     # ~155 kelime/dakika
+  muzik_seviyesi_db: -20         # arka plan müziği (config/muzik/ klasörüne telifsiz mp3 koyun)
+
+video:
+  genislik: 1920
+  yukseklik: 1080
+  fps: 24
+  ken_burns: true            # görsellerde yavaş yakınlaşma efekti (izleyiciyi tutar)
+  crf: 23                    # kalite (düşük = daha iyi, dosya büyür)
+  # İlk saniyeler izleyici kaybının en yüksek olduğu yer: boş intro yerine doğrudan kanca.
+  # İsterseniz 3 yapın (başlık kartı gösterilir).
+  intro_saniye: 0
+  outro_saniye: 5
+
+# --- Laboratuvar (test & optimizasyon) -------------------------------------
+laboratuvar:
+  kesif_orani: 0.2           # üretimin %20'si yeni nişleri denemeye ayrılır
+  viral_esik: 10000          # bu görüntülenmeyi geçen video için devam videosu planlanır
+  min_veri_gunu: 7           # bir videoyu değerlendirmeden önce beklenen gün
+
+# --- Cloudflare (ücretsiz siteler, teklif formu, link takibi) --------------
+cloudflare:
+  web_analytics_token: ""    # Cloudflare > Web Analytics'ten alınan token (isteğe bağlı)
+  adsense_yayinci_id: ""     # AdSense onayından sonra: "pub-XXXXXXXXXXXXXXXX"
+
+# --- Teklifler -------------------------------------------------------------
+teklifler:
+  otomatik_yanit: false      # true = gelen teklife şablon e-postayı otomatik gönderir (SMTP gerekir)
