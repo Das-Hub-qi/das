@@ -14,7 +14,7 @@ sürdürülebilir gelir üret. Sıfır sabit maliyet, minimum insan müdahalesi 
 - Zamanlayıcı ve işlem gücü: GitHub Actions (aylık ücretsiz dakika sınırının %10'unu geçme).
 - Siteler, formlar, link takibi: Cloudflare Pages + Pages Functions + KV + Email Routing + Web Analytics.
   KV deposu, alan adı bağlama ve DNS kaydı API ile otomatik kurulur.
-- Ses: Edge TTS (tr-TR). Görsel: Pexels → Pixabay → otomatik yazı kartı. Montaj: ffmpeg.
+- Ses: Edge TTS (tr-TR), engellenirse çevrimdışı Piper. Görsel: Pexels → Pixabay → Openverse → yazı kartı. Montaj: ffmpeg.
 - Veri deposu: git deposundaki CSV/JSON/Markdown (ek hesap açma).
 - Yapay zekâ: varsayılan ÜCRETSİZ yerel model (Gemma 4 E2B, llama.cpp ile sunucu işlemcisinde),
   JSON şeması dilbilgisiyle zorlanır (bozuk çıktı imkânsız). API anahtarı varsa Claude Haiku 5.5'e geç:
@@ -39,7 +39,8 @@ M3 Plan: haftalık; niş, başlık stili, video uzunluğu ve yayın saati Thomps
    yayınlanmışa Jaccard benzerliği ≥0,6 olan konular elenir; yükselen trendler öne alınır.
 M4 Senaryo: kanca ile başla (boş intro yok), 3-5 bölüm, ortada izlenme kancası, sonda tek net çağrı.
    TTS'e uygun yaz (kısaltma/emoji/URL yok). Uydurma istatistik yok. Sağlıkta teşhis/tedavi vaadi yok.
-M5 Seslendirme: sahne başına ses + kelime zamanlaması → altyazı (SRT).
+M5 Seslendirme: sahne başına ses + kelime zamanlaması → altyazı (SRT). Küçük model metni kısa keserse
+   M4 sonrası kısa sahneleri tek tek genişlet; site adresi/emoji seslendirmeden temizlenir.
 M6 Materyal: sahne başına telifsiz fotoğraf; aynı videoda tekrar yok; kaynak açıklamada belirtilir.
 M7 Montaj: sahne başına Ken Burns efektli klip, kopyalayarak birleştirme, varsa -20 dB müzik, 5 sn bitiş kartı.
 M8 Küçük resim/metadata: 1280×720, 2-4 kelime büyük yazı; başlık ≤100 karakter; otomatik bölüm zaman damgaları;
@@ -66,7 +67,9 @@ M13 ÖĞRENME MÜHENDİSİ (haftalık, M11'den sonra, M2'den önce): sistemi ken
 
 ## 6. DÖNGÜLER
 - Haftalık (Pzt 09:00): M1 → M11 → M13 → M2 → M3 → M4 → M10 → siteler → aylık rapor.
-- Pzt 13:00 ve her gün 07:00: toplu sonucu al → M5-M9 → viral kontrol → teklifler/tıklamalar → siteler.
+- Yerel modelde üretim (M5-M9) haftalık çalıştırmanın içinde yapılır. Claude toplu işindeyse:
+  Pzt 13:00 ve her gün 07:00: toplu sonucu al → M5-M9 → viral kontrol → teklifler/tıklamalar → siteler.
+- Elle yüklenen videolar config/elle_yuklenenler.yaml ile kayda girer; öğrenme onlardan da beslenir.
 - Bir adımın hatası diğerlerini durdurmaz; sonunda iş başarısız işaretlenir (GitHub e-posta bildirimi).
 
 ## 7. GÜVENLİK VE UYUM

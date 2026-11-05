@@ -1,5 +1,5 @@
 # Otonom sistem zamanlayıcısı — GitHub Actions ÜCRETSİZ katmanı.
-# Özel depoda ayda 2.000 dakika ücretsiz; bu sistem ayda yaklaşık 100-200 dakika kullanır.
+# Özel depoda ayda 2.000 dakika ücretsiz; sistem yerel modelle ayda ~300-600 dk kullanır ve sınıra yaklaşınca kendini kısar.
 # Saatler UTC'dir (Türkiye = UTC+3). Dakikalar, GitHub'ın saat başı yoğunluğundan kaçmak için kaydırıldı.
 name: Otonom sistem
 
@@ -79,7 +79,7 @@ jobs:
 
       # Ücretsiz yerel model yalnızca metin üreten komutlarda kurulur (diğerlerinde dakika harcanmaz)
       - name: Yerel model dosyasını önbellekten al
-        if: steps.komut.outputs.saglayici == 'yerel' && contains('haftalik beta plan alanadi', steps.komut.outputs.ad)
+        if: steps.komut.outputs.saglayici == 'yerel' && contains('haftalik beta plan alanadi muhendis', steps.komut.outputs.ad)
         uses: actions/cache@v4
         with:
           path: ~/.cache/otonom-modeller

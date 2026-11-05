@@ -260,3 +260,25 @@ def test_ogrenme_muhendisi_deneyleri_evrimlestirir_ve_kendini_onarir():
     finally:
         for f in (OGRENILEN, VERI / "optimizasyon.json", VERI / "uyarilar.json", VERI / "muhendis_son.json"):
             f.unlink(missing_ok=True)
+
+
+def test_elle_yuklenen_videolar_kayda_eklenir(monkeypatch, tmp_path):
+    from otonom import ayarlar, m04_senaryo
+    from otonom.ayarlar import VERI, csv_oku, yukle
+
+    assert m11_analiz.video_kimligi("https://youtu.be/AbCdEfGhIjK") == "AbCdEfGhIjK"
+    assert m11_analiz.video_kimligi("https://www.youtube.com/watch?v=AbCdEfGhIjK&t=3") == "AbCdEfGhIjK"
+    assert m11_analiz.video_kimligi("https://youtube.com/shorts/XyZ12345678") == "XyZ12345678"
+    assert m11_analiz.video_kimligi("yanlış link") == ""
+
+    ayar = yukle(deneme=True)
+    v = {"nis": "noro", "konu": "elle test", "anahtar_kelime": "elle test", "kod": "elle-test-1"}
+    m04_senaryo.kaydet(ayar, v, m04_senaryo.sahte_icerik(v))
+    (tmp_path / "elle_yuklenenler.yaml").write_text(
+        'videolar:\n  elle-test-1: "https://youtu.be/AbCdEfGhIjK"\n  elle-test-1#shorts1: "XyZ12345678"\n',
+        encoding="utf-8")
+    monkeypatch.setattr(ayarlar, "CONFIG", tmp_path)
+    assert m11_analiz.elle_yuklenenleri_ekle(ayar) == 2
+    assert m11_analiz.elle_yuklenenleri_ekle(ayar) == 0          # ikinci kez eklenmez
+    kayit = {s["youtube_id"]: s for s in csv_oku(VERI / "yayinlananlar.csv")}
+    assert kayit["AbCdEfGhIjK"]["tur"] == "uzun" and kayit["XyZ12345678"]["tur"] == "shorts"

@@ -90,8 +90,9 @@ def main(argv: list[str] | None = None) -> int:
         orkestrator.muhendis_calistir(ayar)
     elif k == "durum":
         pass  # panel aşağıda her komutta zaten yazılıyor
-    butce.kaydet(ayar, k, time.time() - baslangic)
-    durum_paneli.yaz(ayar, k, hatalar)
+    if k != "cloudflare":  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
+        butce.kaydet(ayar, k, time.time() - baslangic)
+        durum_paneli.yaz(ayar, k, hatalar)
     return 1 if hatalar else 0
 
 

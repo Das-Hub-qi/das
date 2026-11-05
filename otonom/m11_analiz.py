@@ -191,7 +191,63 @@ def ab_testi(ayar: Ayarlar, olgun: list[dict], bugun: date, haftalik_yeni: int =
     return notlar
 
 
+def video_kimligi(link: str) -> str:
+    """youtu.be/ID, watch?v=ID, shorts/ID veya çıplak 11 karakterlik kimliği ayıklar."""
+    import re
+
+    m = re.search(r"(?:youtu\.be/|v=|shorts/|embed/)([A-Za-z0-9_-]{11})", link or "")
+    if m:
+        return m.group(1)
+    link = (link or "").strip()
+    return link if re.fullmatch(r"[A-Za-z0-9_-]{11}", link) else ""
+
+
+def elle_yuklenenleri_ekle(ayar: Ayarlar) -> int:
+    """config/elle_yuklenenler.yaml'daki linkleri yayın kaydına ekler (öğrenme motoru bunları da kullanır)."""
+    import yaml
+
+    from . import m04_senaryo
+    from .ayarlar import CONFIG
+    from .orkestrator import DURUM, YAYIN_ALANLARI
+
+    dosya = CONFIG / "elle_yuklenenler.yaml"
+    if not dosya.exists():
+        return 0
+    try:
+        girdiler = (yaml.safe_load(dosya.read_text(encoding="utf-8")) or {}).get("videolar") or {}
+    except yaml.YAMLError as e:
+        from .ayarlar import uyari_ekle
+        uyari_ekle("ayar", f"elle_yuklenenler.yaml okunamadı: {str(e).splitlines()[0]}")
+        return 0
+    mevcut = {s["youtube_id"] for s in csv_oku(VERI / "yayinlananlar.csv")}
+    durum = json_oku(DURUM, {"kuyruk": []})
+    eklenen = 0
+    for anahtar, link in girdiler.items():
+        kod, _, ek = str(anahtar).partition("#")
+        vid = video_kimligi(str(link))
+        icerik = m04_senaryo.yukle(kod)
+        if not vid or vid in mevcut or not icerik:
+            continue
+        shorts = ek.startswith("shorts")
+        sira = int(ek[6:] or 0) if shorts else 0
+        csv_ekle(VERI / "yayinlananlar.csv", [{
+            "tarih": ayar.simdi.isoformat(timespec="seconds"), "kod": kod, "nis": icerik["plan"]["nis"],
+            "tur": "shorts" if shorts else "uzun", "sira": sira, "youtube_id": vid,
+            "baslik": icerik["shorts"][sira]["baslik"] if shorts and sira < len(icerik["shorts"]) else icerik["baslik"],
+            "yayin_zamani": "", "sure_sn": 0, "kelime": icerik.get("kelime", 0)}], YAYIN_ALANLARI)
+        for i in durum["kuyruk"]:
+            if i["kod"] == kod and i["tur"] == ("shorts" if shorts else "uzun") and i["sira"] == sira:
+                i["durum"], i["youtube_id"] = "yuklendi", vid
+        mevcut.add(vid)
+        eklenen += 1
+    if eklenen:
+        json_yaz(DURUM, durum)
+        log.info("Elle yüklenen %d video kayda eklendi.", eklenen)
+    return eklenen
+
+
 def calistir(ayar: Ayarlar, tam_rapor: bool = True) -> dict:
+    elle_yuklenenleri_ekle(ayar)
     yayin = [s for s in csv_oku(VERI / "yayinlananlar.csv")
              if s.get("youtube_id") and not s["youtube_id"].startswith("DENEME")]
     if not yayin:

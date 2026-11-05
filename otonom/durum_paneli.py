@@ -134,6 +134,14 @@ def olustur(ayar: Ayarlar, komut: str, hatalar: list[str]) -> str:
            f"- Bekleyen: **{say.get('bekliyor', 0)}** · yüklendi: {say.get('yuklendi', 0)} · "
            f"elle yüklenecek: {say.get('elle_yukle', 0)} · hata: {say.get('hata', 0)}",
            f"- Yapay zekâda bekleyen toplu iş: {'var' if d.get('bekleyen_toplu') else 'yok'}"]
+    elle = [i for i in d.get("kuyruk", []) if i["durum"] == "elle_yukle"]
+    if elle:
+        md += ["", "**Elle yüklenecekler** — videoları son çalıştırmanın Artifacts bölümünden indir, YouTube'a yükle,",
+               "sonra linkini [config/elle_yuklenenler.yaml](config/elle_yuklenenler.yaml) dosyasına bu kodla ekle "
+               "(öğrenme motoru bu videolardan da öğrenir):", "```"]
+        md += [f"{i['kod']}{'#shorts' + str(i['sira']) if i['tur'] == 'shorts' else ''}: \"https://youtu.be/...\""
+               for i in elle[-9:]]
+        md.append("```")
     yayin = csv_oku(VERI / "yayinlananlar.csv")[-8:]
     if yayin:
         md += ["", "| Tarih | Tür | Başlık |", "|---|---|---|"]
