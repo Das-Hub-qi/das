@@ -60,13 +60,14 @@ def _pixabay(sorgu: str, dikey: bool) -> list[dict]:
 
 
 _OPENVERSE_KAPALI = False  # günlük ücretsiz sınır dolarsa bu çalıştırmada bir daha denenmez
+_OPENVERSE_HATA = 0        # devre kesici: üst üste 3 sunucu hatasında bu çalıştırmada kapatılır
 
 
 def _openverse(sorgu: str, dikey: bool) -> list[dict]:
     """Anahtarsız yedek kaynak: StockSnap'in CC0 (atıf zorunlu değil) stok fotoğrafları.
     Anonim sınır: dakikada 20, günde 200 istek -> istekler arası bekleme yapılır.
     Sonuç yoksa arama kısaltılarak bir kez daha denenir ("student studying tired" -> "student studying")."""
-    global _OPENVERSE_KAPALI
+    global _OPENVERSE_KAPALI, _OPENVERSE_HATA
     kelimeler = sorgu.split()
     denemeler = list(dict.fromkeys([sorgu, " ".join(kelimeler[:2]), kelimeler[0] if kelimeler else sorgu]))
     for q in denemeler:
@@ -78,15 +79,21 @@ def _openverse(sorgu: str, dikey: bool) -> list[dict]:
                 "q": q, "license": "cc0,pdm", "source": "stocksnap", "page_size": 20})
             if r.status_code == 429:
                 _OPENVERSE_KAPALI = True
-                log.warning("Openverse günlük sınırı doldu; yazı kartlarına geçiliyor.")
+                log.warning("Openverse günlük sınırı doldu; sıradaki görsel kaynağına geçiliyor.")
                 return []
             r.raise_for_status()
             sonuc = [{"url": x["url"], "kaynak": "Openverse", "yazar": x.get("creator") or "",
                       "sayfa": x.get("foreign_landing_url") or ""} for x in r.json().get("results", [])]
+            _OPENVERSE_HATA = 0
             if sonuc:
                 return sonuc
         except (requests.RequestException, ValueError, KeyError) as e:
+            _OPENVERSE_HATA += 1
             log.warning("Openverse hatası (%s): %s", q, e)
+            if _OPENVERSE_HATA >= 3:
+                _OPENVERSE_KAPALI = True
+                log.warning("Openverse üst üste hata veriyor; bu çalıştırmada yapay zekâ görseline geçiliyor.")
+                return []
     return []
 
 
