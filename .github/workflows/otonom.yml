@@ -115,7 +115,7 @@ jobs:
           PY
       - name: Yerel model dosyasını önbellekten al
         if: steps.yz.outputs.saglayici == 'yerel' && contains(env.YZ_KOMUTLARI, format(' {0} ', env.KOMUT))
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/otonom-modeller
           key: model-${{ steps.yz.outputs.model_dosyasi }}
@@ -189,7 +189,7 @@ jobs:
         run: pip install -q -r requirements.txt
       - name: Yapay zekâ gereken genel işler için yerel model (alan adı metinleri, yeni kanal)
         if: contains(' haftalik alanadi yeni_kanal ', format(' {0} ', env.KOMUT))
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/otonom-modeller
           key: model-gemma-4-E2B-it-Q4_K_M.gguf
