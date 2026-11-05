@@ -1,32 +1,40 @@
-"""Komut satırı: python -m otonom <komut> [--deneme]
+"""Komut satırı: python -m otonom <komut> [--kanal KOD | --genel] [--deneme]
 
-Komutlar:
-  haftalik   Haftalık döngü (analiz, niş, plan, senaryo, alan adı, site, rapor)
-  gunluk     Günlük döngü (üretim+yükleme, viral kontrol, teklifler, site)
-  envanter   Modül 1        nis       Modül 2        plan      Modül 3
-  uret       Kuyruktaki videoları üret/yükle         alanadi   Modül 10
-  site       Mikro siteleri oluştur                   analiz    Modül 11
-  teklifler  Cloudflare'dan teklifleri al             rapor     Aylık gelir raporu
-  maliyet    Bugüne kadarki yapay zekâ harcaması
-  muhendis   Öğrenme Mühendisi'ni çalıştırır (normalde haftalık döngünün içinde)
-  durum      DURUM.md panelini günceller (neyin kurulu, neyin eksik olduğunu gösterir)
-  cloudflare Alan adlarını Pages sitelerine bağlar, KV deposunu kurar
-  beta       Tek örnek video + Shorts + site üretir, YouTube'a yüklemez ('beta/' klasörü)
---deneme: Dış servis çağırmadan, geçici klasörde sahte veriyle uçtan uca test.
+Kanal komutları (her kanal için ayrı çalışır; --kanal verilmezse tüm kanallar sırayla, sonra genel adımlar):
+  haftalik   Laboratuvar, Öğrenme Mühendisi, niş/kaynak analizi, plan, senaryo, video+Shorts
+  gunluk     Kalan üretim/yükleme, viral kontrol (+ genel: teklifler, tıklamalar, siteler)
+  beta       Kanal başına 1 örnek video + Shorts (YouTube'a yüklemez, 'beta/' klasörü)
+  nis, plan, uret, analiz, muhendis   Tek tek modüller
+Genel komutlar:
+  yeni_kanal --aciklama "..."   Bir cümlelik açıklamadan yeni kanal oluşturur (config/kanallar/)
+  kanallar   Etkin kanalların listesi (JSON)      envanter, alanadi, site, teklifler, rapor, maliyet
+  durum      DURUM.md panelini günceller           cloudflare  Alan adlarını sitelere bağlar
+--kanal KOD: yalnızca o kanalın adımları (GitHub'da her kanal ayrı paralel işte böyle çalışır)
+--genel    : yalnızca genel adımlar (tüm kanallar bittikten sonra)
+--deneme   : dış servis çağırmadan, geçici klasörde sahte veriyle uçtan uca test
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
+import subprocess
 import sys
 import tempfile
+import time
+
+KANAL_KOMUTLARI = {"haftalik", "gunluk", "beta", "nis", "plan", "uret", "analiz", "muhendis"}
+GENEL_KOMUTLAR = {"envanter", "alanadi", "site", "teklifler", "rapor", "maliyet", "cloudflare", "durum",
+                  "yeni_kanal", "kanallar"}
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="otonom", description="Otonom gelir ve içerik sistemi")
-    p.add_argument("komut", choices=["haftalik", "gunluk", "envanter", "nis", "plan", "uret", "alanadi", "site",
-                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare", "durum", "muhendis"])
+    p.add_argument("komut", choices=sorted(KANAL_KOMUTLARI | GENEL_KOMUTLAR))
+    p.add_argument("--kanal", help="yalnızca bu kanalın adımları")
+    p.add_argument("--genel", action="store_true", help="yalnızca genel adımlar")
+    p.add_argument("--aciklama", default="", help="yeni_kanal için kanalın bir cümlelik tarifi")
     p.add_argument("--deneme", action="store_true", help="dış servis yok, geçici klasör, sahte veri")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
@@ -37,41 +45,59 @@ def main(argv: list[str] | None = None) -> int:
     if a.deneme and not os.environ.get("OTONOM_CALISMA"):
         os.environ["OTONOM_CALISMA"] = tempfile.mkdtemp(prefix="otonom-deneme-")
         print(f"Deneme klasörü: {os.environ['OTONOM_CALISMA']}")
+    if a.deneme and not os.environ.get("OTONOM_CONFIG"):  # deneme gerçek ayarlara asla yazmaz (ör. yeni kanal)
+        import shutil
+        from pathlib import Path
+        kopya = Path(os.environ["OTONOM_CALISMA"]) / "config"
+        if not kopya.exists():
+            shutil.copytree(Path(__file__).resolve().parent.parent / "config", kopya)
+        os.environ["OTONOM_CONFIG"] = str(kopya)
+    if a.kanal:
+        os.environ["OTONOM_KANAL"] = a.kanal
+    else:
+        os.environ.pop("OTONOM_KANAL", None)
 
-    # Klasör yolları ortam değişkenine göre belirlendiği için içe aktarma burada yapılır.
-    from . import (llm, m01_envanter, m02_nis_analizi, m03_icerik_plani, m10_alan_adi, m11_analiz, m12_gelir,
-                   mikro_site, orkestrator)
-    from .ayarlar import ozet_yaz, yukle
+    k = a.komut
+    if k == "kanallar":  # iş akışı bunu yalnızca PyYAML kurulu hafif ortamda çağırır
+        from .ayarlar import kanal_listesi
+        print(json.dumps(kanal_listesi()))
+        return 0
 
-    import time
+    # Klasör yolları ortam değişkenlerine göre belirlendiği için içe aktarma burada yapılır.
+    from . import butce, durum_paneli, llm, m01_envanter, m10_alan_adi, m12_gelir, mikro_site, orkestrator
+    from .ayarlar import kanal_listesi, ozet_yaz, yukle
 
-    from . import butce, durum_paneli
+    # ---- Kanal süreci: yalnızca bir kanalın adımları ----
+    if k in KANAL_KOMUTLARI and a.kanal:
+        baslangic = time.time()
+        ayar = yukle(deneme=a.deneme, kanal=a.kanal)
+        if k in ("haftalik", "gunluk", "beta"):
+            ayar.mod = butce.uyarla(ayar)
+        hatalar = orkestrator.KANAL_ISLERI[k](ayar)
+        butce.kaydet(ayar, k, time.time() - baslangic)
+        return 1 if hatalar else 0
+
+    # ---- Ana süreç: (gerekirse) her kanal ayrı süreçte, sonra genel adımlar ----
+    hatalar: list[str] = []
+    if k in KANAL_KOMUTLARI and not a.genel:
+        for kod in kanal_listesi():
+            print(f"\n===== Kanal: {kod} =====", flush=True)
+            komut = [sys.executable, "-m", "otonom", k, "--kanal", kod] + (["--deneme"] if a.deneme else [])
+            sonuc = subprocess.run(komut, env={**os.environ, "OTONOM_KANAL": kod})
+            if sonuc.returncode:
+                hatalar.append(f"Kanal '{kod}' adımlarından en az biri hata verdi (günlüğe bakın).")
 
     baslangic = time.time()
     ayar = yukle(deneme=a.deneme)
-    k = a.komut
-    if k in ("haftalik", "gunluk", "beta"):
+    if k in orkestrator.GENEL_ISLER:
         ayar.mod = butce.uyarla(ayar)
-    hatalar: list[str] = []
-    if k == "haftalik":
-        hatalar = orkestrator.haftalik(ayar)
-    elif k == "gunluk":
-        hatalar = orkestrator.gunluk(ayar)
+        hatalar += orkestrator.GENEL_ISLER[k](ayar)
     elif k == "envanter":
         m01_envanter.calistir(ayar)
-    elif k == "nis":
-        m02_nis_analizi.calistir(ayar)
-    elif k == "plan":
-        orkestrator.senaryo_asamasi(ayar, m03_icerik_plani.calistir(ayar))
-    elif k == "uret":
-        orkestrator.toplu_kontrol(ayar)
-        orkestrator.uretim_asamasi(ayar)
     elif k == "alanadi":
         m10_alan_adi.calistir(ayar, zorla=True)
     elif k == "site":
         mikro_site.olustur(ayar)
-    elif k == "analiz":
-        m11_analiz.calistir(ayar)
     elif k == "teklifler":
         m12_gelir.teklifleri_isle(ayar)
         m12_gelir.tiklamalari_topla(ayar)
@@ -81,17 +107,16 @@ def main(argv: list[str] | None = None) -> int:
         from . import cloudflare_kur
         cloudflare_kur.kv_kimligi()
         cloudflare_kur.alan_adlarini_bagla(ayar)
-    elif k == "beta":
-        hatalar = orkestrator.beta(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
-    elif k == "muhendis":
-        m11_analiz.calistir(ayar, tam_rapor=True)
-        orkestrator.muhendis_calistir(ayar)
-    elif k == "durum":
-        pass  # panel aşağıda her komutta zaten yazılıyor
+    elif k == "yeni_kanal":
+        from . import kanal_sihirbazi
+        try:
+            kanal_sihirbazi.olustur(ayar, a.aciklama)
+        except (ValueError, llm.LLMHatasi) as e:
+            hatalar.append(f"Yeni kanal oluşturulamadı: {e}")
     if k != "cloudflare":  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
-        butce.kaydet(ayar, k, time.time() - baslangic)
+        butce.kaydet(ayar, f"{k}-genel" if k in KANAL_KOMUTLARI else k, time.time() - baslangic)
         durum_paneli.yaz(ayar, k, hatalar)
     return 1 if hatalar else 0
 

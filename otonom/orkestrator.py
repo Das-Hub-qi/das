@@ -17,7 +17,7 @@ from typing import Callable
 from . import (gorsel, llm, m01_envanter, m02_nis_analizi, m03_icerik_plani, m04_senaryo, m05_seslendirme,
                m06_materyal, m07_montaj, m08_thumbnail_metadata, m09_youtube_yukleme, m10_alan_adi,
                m11_analiz, m12_gelir, mikro_site)
-from .ayarlar import CIKTI, VERI, Ayarlar, csv_ekle, json_oku, json_yaz, log, ozet_yaz, uyari_ekle
+from .ayarlar import CIKTI, KANAL_VERI as VERI, Ayarlar, csv_ekle, json_oku, json_yaz, log, ozet_yaz, uyari_ekle
 
 DURUM = VERI / "durum.json"
 YAYIN_ALANLARI = ["tarih", "kod", "nis", "tur", "sira", "youtube_id", "baslik", "yayin_zamani", "sure_sn", "kelime"]
@@ -28,9 +28,13 @@ def _durum() -> dict:
 
 
 def _kuyruga_ekle(durum: dict, ayar: Ayarlar, kod: str, icerik: dict) -> None:
-    durum["kuyruk"].append({"kod": kod, "tur": "uzun", "sira": 0, "durum": "bekliyor"})
-    for j in range(len(icerik["shorts"])):
-        durum["kuyruk"].append({"kod": kod, "tur": "shorts", "sira": j, "durum": "bekliyor"})
+    """Kanalın biçimine göre: uzun_ve_shorts | sadece_shorts | sadece_uzun."""
+    bicim = ayar.kanal_bilgi.get("bicim", "uzun_ve_shorts")
+    if bicim != "sadece_shorts":
+        durum["kuyruk"].append({"kod": kod, "tur": "uzun", "sira": 0, "durum": "bekliyor"})
+    if bicim != "sadece_uzun":
+        for j in range(len(icerik["shorts"])):
+            durum["kuyruk"].append({"kod": kod, "tur": "shorts", "sira": j, "durum": "bekliyor"})
 
 
 # ------------------------------------------------------------- senaryo
@@ -136,7 +140,8 @@ def _uzun_uret(ayar: Ayarlar, kod: str, icerik: dict) -> str | None:
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "uzun", (icerik["plan"].get("deney") or {}).get("yayin_saati"))
     vid = m09_youtube_yukleme.yukle(ayar, sonuc["video"], meta["baslik"], meta["aciklama"], meta["etiketler"],
                                     yayin, Path(meta["thumbnail"]),
-                                    srt if ayar["youtube"]["altyazi_yukle"] else None)
+                                    srt if ayar["youtube"]["altyazi_yukle"] else None,
+                                    sentetik=any(m.get("sentetik") for m in materyal))
     if vid:
         _kaydet_yayin(ayar, kod, icerik, "uzun", 0, vid, meta["baslik"], yayin, sonuc["sure"])
     return vid
@@ -153,7 +158,8 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     baslik = f"{sh['baslik'][:90]} #Shorts"
     aciklama = m08_thumbnail_metadata.aciklama(ayar, icerik, [], [bilgi], shorts=True)
     yayin = m09_youtube_yukleme.sonraki_yayin(ayar, "shorts")
-    vid = m09_youtube_yukleme.yukle(ayar, video, baslik, aciklama, icerik["etiketler"], yayin)
+    vid = m09_youtube_yukleme.yukle(ayar, video, baslik, aciklama, icerik["etiketler"], yayin,
+                                    sentetik=bool(bilgi.get("sentetik")))
     if vid:
         _kaydet_yayin(ayar, kod, icerik, "shorts", j, vid, baslik, yayin, m05_seslendirme.sure(video))
     return vid
@@ -228,60 +234,87 @@ def muhendis_calistir(ayar: Ayarlar) -> list[str]:
     return degisiklik
 
 
-def haftalik(ayar: Ayarlar) -> list[str]:
+# ---- KANAL ADIMLARI: her kanal kendi sürecinde (GitHub'da ayrı paralel işte) çalışır ----
+
+def kanal_haftalik(ayar: Ayarlar) -> list[str]:
     plan: list[dict] = []
-
-    def planla() -> None:
-        plan.extend(m03_icerik_plani.calistir(ayar))
-
-    if ayar.mod == "hafif":  # ücretsiz dakika bitmek üzere: üretim yok, gelir/analiz işleri sürer
-        return _adimlar([
-            ("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True)),
-            ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
-            ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar))),
-        ])
+    if ayar.mod == "hafif":  # ücretsiz dakika bitmek üzere: üretim yok, ölçüm sürer
+        return _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True))])
     adimlar = [
-        ("Modül 1 — Envanter", lambda: m01_envanter.calistir(ayar)),
         ("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True)),
         ("Öğrenme Mühendisi — sistemi geliştir", lambda: muhendis_calistir(ayar)),
-        ("Modül 2 — Niş analizi", lambda: m02_nis_analizi.calistir(ayar)),
-        ("Modül 3 — İçerik planı", planla),
+        ("Modül 2 — Niş ve kaynak analizi", lambda: m02_nis_analizi.calistir(ayar)),
+        ("Modül 3 — İçerik planı", lambda: plan.extend(m03_icerik_plani.calistir(ayar))),
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
     ]
     if not llm.toplu_mu(ayar):  # sonuç hemen hazırsa üretim aynı çalıştırmada yapılır
-        adimlar.append(("Modül 5-9 — Üretim ve yükleme", lambda: uretim_asamasi(ayar)))
-    adimlar += [
-        ("Modül 10 — Alan adı metinleri", lambda: m10_alan_adi.calistir(ayar)),
-        ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
-        ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar))),
-    ]
+        adimlar.append(("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar)))
     return _adimlar(adimlar)
 
 
-def beta(ayar: Ayarlar) -> list[str]:
-    """Tek bir örnek: 1 uzun video + Shorts + site, YouTube'a YÜKLEMEDEN.
-    Ayrı klasörde ('beta/') çalışır, gerçek verilere dokunmaz. Dosyalar Actions 'artifacts'ta."""
+def kanal_gunluk(ayar: Ayarlar) -> list[str]:
+    uretim = [] if ayar.mod == "hafif" else [
+        ("Toplu senaryo sonuçları", lambda: toplu_kontrol(ayar)),
+        ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar)),
+    ]
+    return _adimlar(uretim + [
+        ("Modül 11 — Günlük metrik / viral kontrol", lambda: m11_analiz.calistir(ayar, tam_rapor=False)),
+    ])
+
+
+def kanal_beta(ayar: Ayarlar) -> list[str]:
+    """Tek bir örnek: 1 uzun video + Shorts, YouTube'a YÜKLEMEDEN ('beta/' klasöründe)."""
     ayar.genel["youtube"]["haftalik_uzun_video"] = 1
     ayar.genel["llm"]["toplu_islem"] = False   # sonucu hemen görmek için anlık istek
     ayar.yukleme = False
     plan: list[dict] = []
     return _adimlar([
-        ("Modül 2 — Niş analizi", lambda: m02_nis_analizi.calistir(ayar)),
+        ("Modül 2 — Niş ve kaynak analizi", lambda: m02_nis_analizi.calistir(ayar)),
         ("Modül 3 — Plan (1 video)", lambda: plan.extend(m03_icerik_plani.calistir(ayar))),
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
-        ("Modül 5-8 — Üretim", lambda: uretim_asamasi(ayar)),
-        ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
+        ("Modül 5-8 — Video ve Shorts", lambda: uretim_asamasi(ayar)),
     ])
 
 
-def gunluk(ayar: Ayarlar) -> list[str]:
-    uretim = [] if ayar.mod == "hafif" else [
-        ("Toplu senaryo sonuçları", lambda: toplu_kontrol(ayar)),
-        ("Modül 5-9 — Üretim ve yükleme", lambda: uretim_asamasi(ayar)),
-    ]
-    return _adimlar(uretim + [
-        ("Modül 11 — Günlük metrik / viral kontrol", lambda: m11_analiz.calistir(ayar, tam_rapor=False)),
+KANAL_ISLERI = {
+    "haftalik": kanal_haftalik,
+    "gunluk": kanal_gunluk,
+    "beta": kanal_beta,
+    "nis": lambda a: _adimlar([("Modül 2 — Niş ve kaynak analizi", lambda: m02_nis_analizi.calistir(a))]),
+    "plan": lambda a: _adimlar([("Modül 3-4 — Plan ve senaryo",
+                                 lambda: senaryo_asamasi(a, m03_icerik_plani.calistir(a)))]),
+    "uret": lambda a: _adimlar([("Toplu senaryo sonuçları", lambda: toplu_kontrol(a)),
+                                ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(a))]),
+    "analiz": lambda a: _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(a))]),
+    "muhendis": lambda a: _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(a)),
+                                    ("Öğrenme Mühendisi", lambda: muhendis_calistir(a))]),
+}
+
+
+# ---- GENEL ADIMLAR: tüm kanallar bittikten sonra bir kez (siteler tüm kanalların yazılarını toplar) ----
+
+def genel_haftalik(ayar: Ayarlar) -> list[str]:
+    if ayar.mod == "hafif":
+        return _adimlar([("Mikro siteler", lambda: mikro_site.olustur(ayar)),
+                         ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar)))])
+    return _adimlar([
+        ("Modül 1 — Envanter", lambda: m01_envanter.calistir(ayar)),
+        ("Modül 10 — Alan adı metinleri", lambda: m10_alan_adi.calistir(ayar)),
+        ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
+        ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar))),
+    ])
+
+
+def genel_gunluk(ayar: Ayarlar) -> list[str]:
+    return _adimlar([
         ("Modül 12 — Teklifler", lambda: m12_gelir.teklifleri_isle(ayar)),
         ("Modül 12 — Link tıklamaları", lambda: m12_gelir.tiklamalari_topla(ayar)),
         ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
     ])
+
+
+GENEL_ISLER = {
+    "haftalik": genel_haftalik,
+    "gunluk": genel_gunluk,
+    "beta": lambda a: _adimlar([("Mikro siteler", lambda: mikro_site.olustur(a))]),
+}

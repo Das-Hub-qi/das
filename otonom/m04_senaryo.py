@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 
-from .ayarlar import CIKTI, VERI, Ayarlar, json_oku, json_yaz, log
+from .ayarlar import CIKTI, KANAL_VERI as VERI, Ayarlar, json_oku, json_yaz, log
 
 SENARYO_SEMASI = {
     "type": "object",
@@ -83,6 +83,21 @@ MAKALE: aynı konuyu okuyucu için yeniden düzenle (videonun dökümü değil);
 faydalı, alt başlıklı, 600-900 kelime, sonda 3 soruluk SSS."""
 
 
+DILLER = {"tr": "Türkçe", "en": "İngilizce (English)", "de": "Almanca (Deutsch)", "ar": "Arapça",
+          "es": "İspanyolca (Español)", "fr": "Fransızca (Français)"}
+
+
+def dil_talimati(ayar: Ayarlar) -> str:
+    dil = ayar.kanal_bilgi.get("dil", "tr")
+    return "" if dil == "tr" else f"\nÖNEMLİ: Başlık, açıklama, etiket, sahne, Shorts ve makale dahil TÜM metinleri {DILLER.get(dil, dil)} yaz."
+
+
+def kanal_kimligi(ayar: Ayarlar) -> str:
+    """Kanalın kendine özgü üslubu (kanal dosyasındaki 'uslup' alanı) — kanallar birbirine benzemesin."""
+    uslup = ayar.kanal_bilgi.get("uslup")
+    return f"\nKanalın üslubu: {uslup}" if uslup else ""
+
+
 def istek_olustur(ayar: Ayarlar, v: dict) -> dict:
     nis = ayar.nis(v["nis"])
     site = nis.get("alan_adi") or ""
@@ -104,7 +119,7 @@ Uzun video toplam {hedef - 100}-{hedef + 100} kelime olsun: tam {sahne} sahne ya
 her sahne 4-6 cümle (yaklaşık 75 kelime). Kısa kesme; her bölümde örnek ve açıklama ver.
 gorsel_arama alanlarını İNGİLİZCE 2-4 kelime yaz (ör. "student studying desk").
 Site adresini seslendirme metninde yazma; "açıklamadaki link" de.
-{ayar['youtube']['video_basina_shorts']} adet Shorts metni yaz."""
+{ayar['youtube']['video_basina_shorts']} adet Shorts metni yaz.{dil_talimati(ayar)}{kanal_kimligi(ayar)}"""
     from .muhendis import dersler_metni  # Öğrenme Mühendisi'nin kanaldan çıkardığı kurallar
 
     return {"id": v["kod"], "sistem": SISTEM + dersler_metni(), "istem": istem, "sema": SENARYO_SEMASI,

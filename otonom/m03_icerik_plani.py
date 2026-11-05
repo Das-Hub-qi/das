@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 
 from . import llm, optimizasyon
-from .ayarlar import VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
+from .ayarlar import KANAL_VERI as VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
 
 PLAN_SEMASI = {
     "type": "object",
@@ -87,6 +87,8 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
     for sl in slotlar:
         sl["deney"] = optimizasyon.deney_secimleri(deneyler, istat, rng, yo)
 
+    kaynak_turleri = sorted({a.get("kaynak", "youtube_oneri") for liste in nis_analizi.values() for a in liste})
+    kaynak_post = optimizasyon.posterior(optimizasyon.yasli(ogren.get("kaynak", []), bugun), kaynak_turleri, yo)
     yayinlanan = [x["baslik"] for x in csv_oku(VERI / "yayinlananlar.csv")][-200:]
     gecmis_plan = [v["konu"] for d in sorted((VERI / "plan").glob("*.json"))[-8:] for v in json_oku(d, [])]
     esik = float(ayar["optimizasyon"]["benzerlik_esigi"])
@@ -98,9 +100,16 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
             istek.append(f"{i}. niş={sl['nis']}: ÖNCELİKLİ devam videosu -> {sl['oncelikli']}. {stil}")
             continue
         temiz = optimizasyon.cesitlendir(nis_analizi[sl["nis"]], yayinlanan + gecmis_plan, esik)
-        adaylar = ", ".join(a["konu"] + (" (YÜKSELEN)" if a.get("trend") else "") for a in temiz[:15])
+        # Kaynak öğrenimi: iyi video çıkaran kaynağın (ör. gündem, RSS) adayları öne alınır (Thompson)
+        ornek = {k: rng.betavariate(*kaynak_post[k][:2]) for k in kaynak_post}
+        temiz.sort(key=lambda a: -a["firsat"] * (0.5 + ornek.get(a.get("kaynak", ""), 0.5)))
+        etiket = {"google_trendler": " [gündem]", "rss": " [haber]", "wikipedia_bugun": " [tarihte bugün]"}
+        adaylar = ", ".join(a["konu"] + etiket.get(a.get("kaynak", ""), "") + (" (YÜKSELEN)" if a.get("trend") else "")
+                            for a in temiz[:15])
         istek.append(f"{i}. niş={sl['nis']} ({n['ad']}, kitle: {n['hedef_kitle']}). Aday konular: {adaylar}. {stil}")
     istek.append("\nAynı hafta içinde aynı konuyu iki kez seçme. YÜKSELEN işaretli konular yeni trendlerdir; öncelik ver.")
+    from .m04_senaryo import dil_talimati, kanal_kimligi
+    istek.append(f"Kanal: {ayar.kanal_bilgi.get('ad', ayar.kanal)}.{kanal_kimligi(ayar)}{dil_talimati(ayar)}")
     if yayinlanan:
         istek.append("Daha önce yayınlananlar (tekrar etme): " + " | ".join(yayinlanan[-60:]))
 
@@ -116,8 +125,14 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
     plan = []
     for i, (v, sl) in enumerate(zip(cevap["videolar"], slotlar)):
         v["nis"] = sl["nis"]          # niş, modelin değil Thompson'ın kararıdır
-        v["deney"] = sl["deney"]
-        v["kod"] = f"{yil}h{hafta:02d}-{i + 1}-{kisa_ad(v['konu'], 40)}"
+        # Seçilen konunun hangi kaynaktan geldiği (en benzer aday) -> laboratuvar kaynakları da öğrenir
+        aday = max(nis_analizi.get(sl["nis"], []), key=lambda a: optimizasyon.benzerlik(v["konu"], a["konu"]),
+                   default=None)
+        v["kaynak"] = (aday.get("kaynak", "youtube_oneri")
+                       if aday and optimizasyon.benzerlik(v["konu"], aday["konu"]) >= 0.3 else "model")
+        v["deney"] = {**sl["deney"], "kaynak": v["kaynak"]}
+        v["kod"] = f"{ayar.kanal}-{yil}h{hafta:02d}-{i + 1}-{kisa_ad(v['konu'], 40)}"
+        v["kanal"] = ayar.kanal
         v["basliklar"] = [b[:100] for b in v["basliklar"]][:3] or [v["konu"]]
         plan.append(v)
 

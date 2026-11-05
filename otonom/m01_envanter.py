@@ -112,7 +112,9 @@ def calistir(ayar: Ayarlar) -> list[dict]:
             "deger": f"{deger['seviye']} ({deger['puan']}/100)", "potansiyel": potansiyel,
         })
 
-    for k in ayar.varliklar.get("youtube_kanallari", []) or []:
+    from .ayarlar import tum_kanallar
+    for ka in tum_kanallar(ayar.deneme):
+        k = {"ad": f"{ka.kanal_bilgi.get('ad', ka.kanal)} ({ka.kanal})", "kanal_id": ka.kanal_bilgi.get("kanal_id", "")}
         ist = {} if ayar.deneme else _kanal_istatistik(k.get("kanal_id", ""))
         if ist:
             ilerleme = min(100, math.floor(ist["abone"] / 10))

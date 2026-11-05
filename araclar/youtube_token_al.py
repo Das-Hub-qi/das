@@ -7,11 +7,13 @@
   3. Kimlik bilgisi oluşturun: OAuth istemci kimliği -> "Masaüstü uygulaması".
      JSON dosyasını indirip bu klasöre client_secret.json adıyla koyun.
 
-Çalıştırma:
+Çalıştırma (her kanal için bir kez; kanal kodu config/kanallar/<kod>.yaml dosyasının adıdır):
   pip install google-auth-oauthlib
-  python araclar/youtube_token_al.py
-Tarayıcı açılır, YouTube kanalınızın bağlı olduğu Google hesabıyla izin verin.
-Ekrana çıkan 3 değeri GitHub > Settings > Secrets and variables > Actions'a ekleyin.
+  python araclar/youtube_token_al.py ana
+  python araclar/youtube_token_al.py tarih      # başka bir kanal için
+Tarayıcı açılır; Google hesabınla giriş yap ve İZİN VERİLECEK KANALI SEÇ (birden çok kanalın varsa
+"kanal seç" ekranında doğru kanalı seçmek önemli). Ekrana çıkan değerleri GitHub > Settings >
+Secrets and variables > Actions'a ekle. YT_CLIENT_ID ve YT_CLIENT_SECRET tüm kanallar için ortaktır.
 """
 import json
 import sys
@@ -26,15 +28,17 @@ IZINLER = [
     "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",  # reklam geliri
 ]
 
-dosya = Path(sys.argv[1] if len(sys.argv) > 1 else "client_secret.json")
+kanal = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].endswith(".json") else "ana"
+dosya = Path(next((a for a in sys.argv[1:] if a.endswith(".json")), "client_secret.json"))
 if not dosya.exists():
     sys.exit(f"{dosya} bulunamadı. Google Cloud'dan indirdiğiniz JSON dosyasının yolunu verin.")
 
 akis = InstalledAppFlow.from_client_secrets_file(str(dosya), IZINLER)
 kimlik = akis.run_local_server(port=0, prompt="consent", access_type="offline")
 istemci = json.loads(dosya.read_text())["installed"]
-print("\nAşağıdaki 3 değeri GitHub Secrets'a ekleyin:\n")
+print("\nAşağıdaki değerleri GitHub Secrets'a ekleyin (ilk ikisi tüm kanallar için bir kez yeterli):\n")
 print(f"YT_CLIENT_ID      = {istemci['client_id']}")
 print(f"YT_CLIENT_SECRET  = {istemci['client_secret']}")
-print(f"YT_REFRESH_TOKEN  = {kimlik.refresh_token}")
+print(f"YT_REFRESH_TOKEN_{kanal.upper().replace('-', '_')}  = {kimlik.refresh_token}")
+print(f"\n(Bu anahtar yalnızca '{kanal}' kanalının videolarını yükler.)")
 print("\nBu değerleri kimseyle paylaşmayın. client_secret.json dosyasını depoya eklemeyin.")

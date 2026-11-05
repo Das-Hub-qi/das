@@ -1,126 +1,153 @@
 # Otonom sistem zamanlayıcısı — GitHub Actions ÜCRETSİZ katmanı.
-# Özel depoda ayda 2.000 dakika ücretsiz; sistem yerel modelle ayda ~300-600 dk kullanır ve sınıra yaklaşınca kendini kısar.
+# Her kanal kendi işinde PARALEL çalışır (kanal sayısı sınırsız); kanallar bitince genel iş
+# (alan adları, siteler, teklifler, DURUM.md) bir kez çalışır.
+# Herkese açık depoda dakika sınırsızdır; özel depoda sistem 2.000 dk sınırına kendini uydurur.
 # Saatler UTC'dir (Türkiye = UTC+3). Dakikalar, GitHub'ın saat başı yoğunluğundan kaçmak için kaydırıldı.
 name: Otonom sistem
 
 on:
   schedule:
-    - cron: "17 6 * * 1"   # Pazartesi 09:17 — HAFTALIK döngü (analiz, plan, senaryo, siteler)
-    - cron: "7 4 * * *"    # Her gün 07:07 — GÜNLÜK döngü (üretim, yükleme, teklifler)
-    - cron: "37 10 * * 1"  # Pazartesi 13:37 — haftanın senaryoları hazır olunca üretim
+    - cron: "17 6 * * 1"   # Pazartesi 09:17 — HAFTALIK döngü (öğrenme, plan, senaryo, video, Shorts)
+    - cron: "7 4 * * *"    # Her gün 07:07 — GÜNLÜK döngü (kalan yüklemeler, teklifler, siteler)
+    - cron: "37 10 * * 1"  # Pazartesi 13:37 — (Claude toplu işi kullanılıyorsa) senaryoları alıp üretim
   workflow_dispatch:       # Actions sekmesinden elle çalıştırma
     inputs:
       komut:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, beta, muhendis, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, beta, yeni_kanal, muhendis, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+      aciklama:
+        description: "Yalnızca yeni_kanal için: kanalı bir cümleyle anlat (konu, kitle, dil, biçim)"
+        type: string
+        default: ""
+      kanal:
+        description: "İsteğe bağlı: yalnızca bu kanalı çalıştır (boş = tüm kanallar)"
+        type: string
+        default: ""
 
 permissions:
-  contents: write          # veri/ klasöründeki sonuçları depoya kaydetmek için
+  contents: write          # veri/ ve yeni kanal dosyalarını depoya kaydetmek için
   issues: write            # Öğrenme Mühendisi'nin sorun/öneri kayıtları için
 
 concurrency:
   group: otonom            # iki çalıştırma aynı anda olmasın
   cancel-in-progress: false
 
+env:
+  KANAL_KOMUTLARI: " haftalik gunluk beta nis plan uret analiz muhendis "
+  YZ_KOMUTLARI: " haftalik beta plan muhendis gunluk uret "
+
 jobs:
-  calistir:
+  # 1) Komutu ve çalışacak kanalları belirle (hafif, ~20 sn)
+  hazirlik:
     runs-on: ubuntu-latest
-    timeout-minutes: 240         # yerel model işlemcide çalıştığı için haftalık iş uzun sürebilir
-    env:
-      REPO_OZEL: ${{ github.event.repository.private }}   # herkese açık depoda dakika sınırı yok
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}           # GitHub'ın otomatik verdiği anahtar (kurulum gerekmez)
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
-      SMTP_SUNUCU: ${{ secrets.SMTP_SUNUCU }}
-      SMTP_PORT: ${{ secrets.SMTP_PORT }}
-      SMTP_KULLANICI: ${{ secrets.SMTP_KULLANICI }}
-      SMTP_SIFRE: ${{ secrets.SMTP_SIFRE }}
+    outputs:
+      komut: ${{ steps.k.outputs.komut }}
+      kanallar: ${{ steps.k.outputs.kanallar }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: k
+        env:
+          GIRILEN_KOMUT: ${{ github.event.inputs.komut }}
+          GIRILEN_KANAL: ${{ github.event.inputs.kanal }}
+          ZAMANLAMA: ${{ github.event.schedule }}
+        run: |
+          pip install -q pyyaml
+          KOMUT="$GIRILEN_KOMUT"
+          if [ -z "$KOMUT" ]; then
+            if [ "$ZAMANLAMA" = "17 6 * * 1" ]; then KOMUT=haftalik; else KOMUT=gunluk; fi
+          fi
+          echo "komut=$KOMUT" >> "$GITHUB_OUTPUT"
+          if [[ "$KANAL_KOMUTLARI" == *" $KOMUT "* ]]; then
+            if [ -n "$GIRILEN_KANAL" ]; then
+              python -c "import json,sys; print('kanallar=' + json.dumps([sys.argv[1]]))" "$GIRILEN_KANAL" >> "$GITHUB_OUTPUT"
+            else
+              echo "kanallar=$(python -m otonom kanallar)" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "kanallar=[]" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
 
+  # 2) Her kanal kendi işinde, paralel: öğrenme, plan, senaryo, video, Shorts, yükleme
+  kanal:
+    needs: hazirlik
+    if: needs.hazirlik.outputs.kanallar != '[]' && needs.hazirlik.outputs.kanallar != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false       # bir kanalın hatası diğerlerini durdurmaz
+      max-parallel: 6
+      matrix:
+        kanal: ${{ fromJSON(needs.hazirlik.outputs.kanallar) }}
+    env:
+      REPO_OZEL: ${{ github.event.repository.private }}   # herkese açık depoda dakika sınırı yok
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TUM_GIZLILER: ${{ toJSON(secrets) }}                 # her kanalın kendi anahtarı (YT_REFRESH_TOKEN_<KANAL>)
+      KOMUT: ${{ needs.hazirlik.outputs.komut }}
+      KANAL: ${{ matrix.kanal }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements*.txt
-
       - name: Araçları kur (ffmpeg, yazı tipleri, Python paketleri)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core >/dev/null
           pip install -q -r requirements.txt
-
-      - name: Komutu ve yapay zekâ sağlayıcısını belirle
-        id: komut
+      - name: Yapay zekâ sağlayıcısını belirle
+        id: yz
         run: |
-          KOMUT="${{ github.event.inputs.komut }}"
-          if [ -z "$KOMUT" ]; then
-            if [ "${{ github.event.schedule }}" = "17 6 * * 1" ]; then KOMUT=haftalik; else KOMUT=gunluk; fi
-          fi
-          echo "ad=$KOMUT" >> "$GITHUB_OUTPUT"
           python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
           from otonom.ayarlar import yukle
           from otonom import llm
-          a = yukle()
+          a = yukle(kanal=os.environ["KANAL"])
           print("saglayici=" + llm.saglayici(a))
           print("model_dosyasi=" + a["llm"]["yerel_dosya"])
           PY
-          cat "$GITHUB_OUTPUT"
-
-      # Ücretsiz yerel model yalnızca metin üreten komutlarda kurulur (diğerlerinde dakika harcanmaz)
       - name: Yerel model dosyasını önbellekten al
-        if: steps.komut.outputs.saglayici == 'yerel' && contains('haftalik beta plan alanadi muhendis', steps.komut.outputs.ad)
+        if: steps.yz.outputs.saglayici == 'yerel' && contains(env.YZ_KOMUTLARI, format(' {0} ', env.KOMUT))
         uses: actions/cache@v4
         with:
           path: ~/.cache/otonom-modeller
-          key: model-${{ steps.komut.outputs.model_dosyasi }}
-
-      # Claude seçili olsa bile kurulur: kredi/kota biterse sistem yerel modelle devam eder (yedek).
+          key: model-${{ steps.yz.outputs.model_dosyasi }}
+      # Claude/Cloudflare seçili olsa bile kurulur: kota/kredi biterse yerel modelle devam edilir (yedek).
       - name: Yerel model çalıştırıcısını kur (llama.cpp)
-        if: contains('haftalik beta plan alanadi gunluk uret muhendis', steps.komut.outputs.ad)
+        if: contains(env.YZ_KOMUTLARI, format(' {0} ', env.KOMUT))
         env:
-          # Tüm GitHub sunucularında çalışan taşınabilir derleme (önbellekteki paket farklı işlemcide de çalışsın)
           CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
         run: pip install -q -r requirements-yerel.txt
-
-      - name: Sistemi çalıştır
-        id: calis
-        run: python -m otonom ${{ steps.komut.outputs.ad }}
-
-      - name: Siteleri Cloudflare Pages'e yükle (yalnızca değişenler)
-        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: bash araclar/siteleri_yukle.sh
-
-      - name: Alan adlarını sitelere bağla (otomatik, ilk seferde)
-        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: python -m otonom cloudflare
-
-      - name: Sonuçları depoya kaydet
+      - name: Kanalı çalıştır
+        run: python -m otonom "$KOMUT" --kanal "$KANAL"
+      - name: Beta sitesini hazırla (önizleme)
+        if: always() && env.KOMUT == 'beta'
+        run: python -m otonom site
+        env:
+          OTONOM_CALISMA: ${{ github.workspace }}/beta
+      - name: Kanal verisini kaydet
         if: always()
         run: |
           git config user.name "otonom-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add veri DURUM.md 2>/dev/null || git add veri
+          [ -d "veri/kanallar/$KANAL" ] || exit 0
+          git add "veri/kanallar/$KANAL"
           if ! git diff --cached --quiet; then
-            git commit -q -m "Otomatik veri güncellemesi ($(date -u +%F) ${{ steps.komut.outputs.ad }})"
-            git pull -q --rebase && git push -q
+            git commit -q -m "Kanal $KANAL: veri güncellemesi ($(date -u +%F) $KOMUT)"
+            for i in 1 2 3 4 5 6; do git pull -q --rebase && git push -q && break; sleep $((i * 7)); done
           fi
-
-      - name: Elle yüklenecek videoları sakla (YouTube bağlantısı yoksa)
+      - name: Videoları indirilebilir sakla
         if: always() && (hashFiles('cikti/ELLE_YUKLE') != '' || hashFiles('beta/cikti/ELLE_YUKLE') != '')
         uses: actions/upload-artifact@v4
         with:
-          name: videolar-${{ github.run_number }}
+          name: videolar-${{ matrix.kanal }}-${{ github.run_number }}
           retention-days: 3
           if-no-files-found: ignore
           path: |
@@ -135,3 +162,64 @@ jobs:
             beta/cikti/*/metadata.json
             beta/cikti/*/senaryo.txt
             beta/site/*/public/**
+
+  # 3) Genel iş: tüm kanallar bitince bir kez — alan adları, siteler, teklifler, yeni kanal, DURUM.md
+  genel:
+    needs: [hazirlik, kanal]
+    if: always() && needs.hazirlik.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      REPO_OZEL: ${{ github.event.repository.private }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TUM_GIZLILER: ${{ toJSON(secrets) }}
+      KOMUT: ${{ needs.hazirlik.outputs.komut }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kanal işlerinin kaydettiği son veriyi al
+        run: git pull -q --rebase origin "${GITHUB_REF_NAME}" || true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Python paketlerini kur
+        run: pip install -q -r requirements.txt
+      - name: Yapay zekâ gereken genel işler için yerel model (alan adı metinleri, yeni kanal)
+        if: contains(' haftalik alanadi yeni_kanal ', format(' {0} ', env.KOMUT))
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/otonom-modeller
+          key: model-gemma-4-E2B-it-Q4_K_M.gguf
+      - name: Yerel model çalıştırıcısını kur
+        if: contains(' haftalik alanadi yeni_kanal ', format(' {0} ', env.KOMUT))
+        env:
+          CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+        run: pip install -q -r requirements-yerel.txt
+      - name: Genel adımları çalıştır
+        env:
+          ACIKLAMA: ${{ github.event.inputs.aciklama }}
+        run: |
+          if [[ "$KANAL_KOMUTLARI" == *" $KOMUT "* ]]; then
+            python -m otonom "$KOMUT" --genel
+          else
+            python -m otonom "$KOMUT" --aciklama "$ACIKLAMA"
+          fi
+      - name: Siteleri Cloudflare Pages'e yükle (yalnızca değişenler)
+        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.KOMUT != 'beta'
+        run: bash araclar/siteleri_yukle.sh
+      - name: Alan adlarını sitelere bağla (otomatik, ilk seferde)
+        if: always() && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: python -m otonom cloudflare
+      - name: Sonuçları ve yeni kanalları depoya kaydet
+        if: always()
+        run: |
+          git config user.name "otonom-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add veri DURUM.md config/kanallar 2>/dev/null || git add veri
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Otomatik güncelleme ($(date -u +%F) $KOMUT)"
+            for i in 1 2 3 4 5; do git pull -q --rebase && git push -q && break; sleep $((i * 5)); done
+          fi

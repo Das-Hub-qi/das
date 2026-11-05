@@ -11,8 +11,13 @@ saat_dilimi: "Europe/Istanbul"
 #   "otomatik" = ANTHROPIC_API_KEY eklediyseniz Claude (daha kaliteli), eklemediyseniz ücretsiz yerel model
 #   "yerel"    = her zaman ücretsiz yerel model (API anahtarı ve ücret yok, GitHub sunucusunda çalışır)
 #   "claude"   = her zaman Claude Haiku 5.5 (1M token girdi 0,10 $ / çıktı 0,50 $; ayda birkaç kuruş)
+#   "cloudflare" = Cloudflare Workers AI (Cloudflare hesabının ücretsiz günlük kotası; Llama 3.3 70B)
+# "otomatik" sırası: Claude (anahtar varsa) -> Cloudflare (hesap bağlıysa) -> yerel model.
+# Biri kullanılamazsa (kredi/kota/ağ) sıradakine kendiliğinden geçilir; iş asla durmaz.
 llm:
   saglayici: "otomatik"
+  cloudflare_metin_modeli: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"   # boş = Cloudflare metin kullanılmaz
+  cloudflare_gorsel_modeli: "@cf/black-forest-labs/flux-1-schnell"     # boş = Cloudflare görsel kullanılmaz
   # Yerel model: Google Gemma 4 (Mart 2026). Testlerde Türkçesi en akıcı ve en hızlı küçük model.
   yerel_model: "unsloth/gemma-4-E2B-it-GGUF"
   yerel_dosya: "gemma-4-E2B-it-Q4_K_M.gguf"

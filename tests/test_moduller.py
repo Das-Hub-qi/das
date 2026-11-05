@@ -93,10 +93,10 @@ def test_yuzdelik_ve_puanlama():
 
 def test_haftalik_dongu_deneme_modunda_uctan_uca(tmp_path: Path):
     from otonom.__main__ import main
-    from otonom.ayarlar import CIKTI, SITE, VERI, csv_oku
+    from otonom.ayarlar import CIKTI, KANALLAR_VERI, SITE, VERI, csv_oku
 
     assert main(["haftalik", "--deneme"]) == 0
-    yayin = csv_oku(VERI / "yayinlananlar.csv")
+    yayin = csv_oku(KANALLAR_VERI / "ana" / "yayinlananlar.csv")   # her kanalın kendi klasörü
     assert {s["tur"] for s in yayin} == {"uzun", "shorts"}
     kod = yayin[0]["kod"]
     for dosya in ("final_video.mp4", "thumbnail.jpg", "metadata.json", "altyazi.srt", "shorts_0.mp4"):
@@ -185,6 +185,7 @@ def test_ayar_hatasi_anlasilir_mesaj(tmp_path, monkeypatch):
     (tmp_path / "ayarlar.yaml").write_text("llm:\n\tsaglayici: yerel\n", encoding="utf-8")  # TAB hatası
     (tmp_path / "varliklar.yaml").write_text("nisler: []\n", encoding="utf-8")
     monkeypatch.setattr(ayarlar, "CONFIG", tmp_path)
+    monkeypatch.setattr(ayarlar, "KANAL_CONFIG", tmp_path / "kanallar")   # kanal dosyası yok
     with pytest.raises(ayarlar.AyarHatasi) as h:
         ayarlar.yukle()
     assert "satır" in str(h.value)
@@ -202,7 +203,8 @@ def test_durum_paneli_eksikleri_gosterir():
     from otonom.ayarlar import yukle
 
     metin = durum_paneli.olustur(yukle(deneme=True), "gunluk", ["Örnek hata"])
-    assert "Kurulum kontrol listesi" in metin and "YouTube yükleme" in metin and "Örnek hata" in metin
+    assert "Kurulum kontrol listesi" in metin and "YouTube uygulaması" in metin and "Örnek hata" in metin
+    assert "## Kanallar" in metin and "YT_REFRESH_TOKEN_ANA" in metin     # kanal başına anahtar adı gösterilir
 
 
 def test_optimizasyon_algoritmalari():
@@ -232,7 +234,8 @@ def test_ogrenme_muhendisi_deneyleri_evrimlestirir_ve_kendini_onarir():
     from datetime import timedelta
 
     from otonom import muhendis
-    from otonom.ayarlar import OGRENILEN, VERI, json_yaz, yukle
+    from otonom.ayarlar import KANAL_VERI as VERI
+    from otonom.ayarlar import OGRENILEN, json_yaz, yukle
 
     ayar = yukle(deneme=True)
     bugun = ayar.simdi.date()
@@ -264,7 +267,8 @@ def test_ogrenme_muhendisi_deneyleri_evrimlestirir_ve_kendini_onarir():
 
 def test_elle_yuklenen_videolar_kayda_eklenir(monkeypatch, tmp_path):
     from otonom import ayarlar, m04_senaryo
-    from otonom.ayarlar import VERI, csv_oku, yukle
+    from otonom.ayarlar import KANAL_VERI as VERI
+    from otonom.ayarlar import csv_oku, yukle
 
     assert m11_analiz.video_kimligi("https://youtu.be/AbCdEfGhIjK") == "AbCdEfGhIjK"
     assert m11_analiz.video_kimligi("https://www.youtube.com/watch?v=AbCdEfGhIjK&t=3") == "AbCdEfGhIjK"
@@ -307,3 +311,38 @@ def test_herkese_acik_depoda_kisisel_veri_maskelenir(monkeypatch):
     assert satir["eposta"] == "a***@o***.com" and "Ali" not in satir["ad"] and "Merhaba" not in satir["mesaj"]
     assert "ali@ornek.com" in kv["islendi:1:x"]          # tam hali yalnızca özel KV'de
     assert "teklif:1:x" not in kv                         # tekrar işlenmez
+
+
+def test_cok_kanal_uctan_uca_her_kanal_kendi_bicimi_ve_klasoru():
+    """İkinci kanal (sadece Shorts, farklı kaynaklar) eklenince her kanal kendi klasöründe üretir."""
+    from otonom.__main__ import main
+    from otonom.ayarlar import KANAL_CONFIG, KANALLAR_VERI, SITE, csv_oku
+
+    dosya = KANAL_CONFIG / "tarih.yaml"
+    dosya.write_text("""ad: Tarih Kısa
+bicim: sadece_shorts
+dil: tr
+ayarlar:
+  youtube: {haftalik_uzun_video: 1, video_basina_shorts: 3}
+nisler:
+  - kod: osmanli
+    ad: Osmanlı Hikâyeleri
+    alan_adi: trustneurohub.com.tr
+    kaynaklar:
+      - {tur: elle, konular: ["Lale Devri", "İstanbul'un fethi"]}
+      - {tur: wikipedia_bugun}
+""", encoding="utf-8")
+    try:
+        assert main(["haftalik", "--deneme"]) == 0
+        ana = csv_oku(KANALLAR_VERI / "ana" / "yayinlananlar.csv")
+        tarih = csv_oku(KANALLAR_VERI / "tarih" / "yayinlananlar.csv")
+        assert {s["tur"] for s in ana} == {"uzun", "shorts"}
+        assert {s["tur"] for s in tarih} == {"shorts"} and len(tarih) == 3     # yalnızca Shorts
+        assert all(s["kod"].startswith("tarih-") for s in tarih)               # kanal önekli kodlar
+        plan = next((KANALLAR_VERI / "tarih" / "plan").glob("*.json")).read_text(encoding="utf-8")
+        assert '"kaynak"' in plan                                              # kaynak öğrenimi için etiket
+        # İki kanalın yazıları aynı alan adının sitesinde birlikte yayınlanır
+        yazilar = list((SITE / "trustneurohub-com-tr" / "public" / "yazi").glob("*"))
+        assert any(p.name.startswith("tarih-") for p in yazilar) and any(p.name.startswith("ana-") for p in yazilar)
+    finally:
+        dosya.unlink(missing_ok=True)

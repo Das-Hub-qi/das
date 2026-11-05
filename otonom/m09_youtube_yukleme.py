@@ -11,12 +11,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .ayarlar import VERI, Ayarlar, csv_oku, gizli, json_oku, json_yaz, log, uyari_ekle
+from .ayarlar import ISLETME, KANAL_VERI as VERI, Ayarlar, csv_oku, gizli, json_oku, json_yaz, log, uyari_ekle
 
 GUNLER = {"pazartesi": 0, "sali": 1, "carsamba": 2, "persembe": 3, "cuma": 4, "cumartesi": 5, "pazar": 6}
 KOTA = {"yukleme": 1600, "kucuk_resim": 50, "altyazi": 400}
 GUNLUK_KOTA = 10_000
-KOTA_DOSYASI = VERI / "kota.json"
+KOTA_DOSYASI = ISLETME / "kota.json"
 
 
 def yayin_zamanlari(baslangic: datetime, gunler: list[str], saat: str, adet: int) -> list[datetime]:
@@ -54,9 +54,17 @@ def _kota_gunu() -> str:
     return datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()  # kota PT gece yarısı sıfırlanır
 
 
+def kota_payi() -> int:
+    """YouTube kotası Google Cloud projesi başınadır; kanallar aynı projeyi kullanıyorsa eşit paylaşılır.
+    Bir kanal kendi projesini kullanıyorsa kanal dosyasına 'youtube_kota: 10000' yazılabilir."""
+    from .ayarlar import KANAL, kanal_bilgisi, kanal_listesi
+    ozel = kanal_bilgisi(KANAL).get("youtube_kota")
+    return int(ozel) if ozel else GUNLUK_KOTA // max(1, len(kanal_listesi()))
+
+
 def kota_yeterli(birim: int) -> bool:
     kullanilan = json_oku(KOTA_DOSYASI, {}).get(_kota_gunu(), 0)
-    return kullanilan + birim <= GUNLUK_KOTA - 300  # analiz için pay bırak
+    return kullanilan + birim <= kota_payi() - 300  # analiz için pay bırak
 
 
 def kota_harca(birim: int) -> None:
@@ -70,21 +78,37 @@ def kota_harca(birim: int) -> None:
 _KIMLIK_BOZUK = False  # bu çalıştırmada yetki reddedildiyse tekrar denenmez
 
 
-def kimlik_var() -> bool:
-    return not _KIMLIK_BOZUK and all(gizli(k) for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"))
+def anahtar_adi(kanal: str | None = None) -> str:
+    """Kanalın YouTube anahtarının GitHub Secrets'taki adı: YT_REFRESH_TOKEN_<KANAL>."""
+    from .ayarlar import KANAL, kanal_bilgisi
+    kanal = kanal or KANAL
+    return kanal_bilgisi(kanal).get("youtube_anahtari") or "YT_REFRESH_TOKEN_" + kanal.upper().replace("-", "_")
+
+
+def yenileme_anahtari(kanal: str | None = None) -> str:
+    """Yalnızca 'ana' kanal eski tek anahtarı (YT_REFRESH_TOKEN) kullanabilir: başka kanalın videosu
+    yanlışlıkla ana kanala yüklenmesin."""
+    from .ayarlar import KANAL
+    kanal = kanal or KANAL
+    return gizli(anahtar_adi(kanal)) or (gizli("YT_REFRESH_TOKEN") if kanal == "ana" else "")
+
+
+def kimlik_var(kanal: str | None = None) -> bool:
+    return not _KIMLIK_BOZUK and bool(gizli("YT_CLIENT_ID") and gizli("YT_CLIENT_SECRET") and yenileme_anahtari(kanal))
 
 
 def servis(api: str = "youtube", surum: str = "v3"):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
-    kimlik = Credentials(None, refresh_token=gizli("YT_REFRESH_TOKEN"), client_id=gizli("YT_CLIENT_ID"),
+    kimlik = Credentials(None, refresh_token=yenileme_anahtari(), client_id=gizli("YT_CLIENT_ID"),
                          client_secret=gizli("YT_CLIENT_SECRET"), token_uri="https://oauth2.googleapis.com/token")
     return build(api, surum, credentials=kimlik, cache_discovery=False)
 
 
 def yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: list[str],
-          yayin: datetime | None, kucuk_resim: Path | None = None, altyazi: Path | None = None) -> str | None:
+          yayin: datetime | None, kucuk_resim: Path | None = None, altyazi: Path | None = None,
+          sentetik: bool = False) -> str | None:
     """Video kimliğini döner. Kota/kimlik yoksa None (sonraki çalıştırmada tekrar denenir)."""
     if ayar.deneme:
         return "DENEME-" + video.stem
@@ -101,11 +125,11 @@ def yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: lis
     from googleapiclient.errors import HttpError
 
     try:
-        return _yukle(ayar, video, baslik, aciklama, etiketler, yayin, kucuk_resim, altyazi)
+        return _yukle(ayar, video, baslik, aciklama, etiketler, yayin, kucuk_resim, altyazi, sentetik)
     except HttpError as e:
         neden = str(e)
         if "quotaExceeded" in neden or "uploadLimitExceeded" in neden:
-            kota_harca(GUNLUK_KOTA)  # bugün için dolu say; yarın kaldığı yerden devam
+            kota_harca(kota_payi())  # bugün için dolu say; yarın kaldığı yerden devam
             uyari_ekle("youtube", "YouTube günlük kotası/yükleme sınırı doldu; kalan videolar yarın yüklenecek.")
             return None
         raise
@@ -121,13 +145,14 @@ def yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: lis
 
 
 def _yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: list[str],
-           yayin: datetime | None, kucuk_resim: Path | None, altyazi: Path | None) -> str:
+           yayin: datetime | None, kucuk_resim: Path | None, altyazi: Path | None, sentetik: bool = False) -> str:
     from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload
 
     yt = servis()
     durum = {"privacyStatus": "private", "selfDeclaredMadeForKids": False,
-             "containsSyntheticMedia": bool(ayar["youtube"]["sentetik_medya_beyani"])}
+             # Yapay zekâ görseli kullanıldıysa YouTube'un yapay içerik beyanı otomatik işaretlenir
+             "containsSyntheticMedia": bool(ayar["youtube"]["sentetik_medya_beyani"]) or sentetik}
     if yayin:
         durum["publishAt"] = yayin.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     govde = {

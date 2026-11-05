@@ -13,7 +13,7 @@ from urllib.parse import quote
 import requests
 
 from . import llm
-from .ayarlar import VERI, Ayarlar, csv_ekle, csv_oku, gizli, log, ozet_yaz
+from .ayarlar import KANALLAR_VERI, VERI, Ayarlar, csv_ekle, csv_oku, gizli, log, ozet_yaz
 
 TEKLIF_ALANLARI = ["tarih", "alan_adi", "ad", "eposta", "teklif", "tur", "mesaj", "ulke", "anahtar"]
 
@@ -157,13 +157,14 @@ def _gelir_analitik(ay_basi: str, bugun: str) -> str:
 def aylik_rapor(ayar: Ayarlar) -> str:
     bugun = ayar.simdi.date()
     ay = bugun.strftime("%Y-%m")
-    yayin = [s for s in csv_oku(VERI / "yayinlananlar.csv") if s["tarih"].startswith(ay)]
+    yayin = [s for d in sorted(KANALLAR_VERI.glob("*/yayinlananlar.csv")) for s in csv_oku(d)
+             if s["tarih"].startswith(ay)]
     tik = Counter()
     for s in csv_oku(VERI / "tiklamalar.csv"):
         if s["tarih"].startswith(ay):
             tik[s["link"]] += int(s["tiklama"])
     teklif = [s for s in csv_oku(VERI / "teklifler.csv") if s["tarih"].startswith(ay)]
-    maliyet = sum(float(s["dolar"]) for s in csv_oku(llm.MALIYET_DOSYASI))
+    maliyet = llm.toplam_maliyet()
     md = [f"# Gelir Raporu — {ay}", "",
           f"- Yayınlanan: {sum(s['tur'] == 'uzun' for s in yayin)} uzun video, {sum(s['tur'] == 'shorts' for s in yayin)} Shorts",
           f"- YouTube tahmini reklam geliri (bu ay): {'-' if ayar.deneme else _gelir_analitik(bugun.replace(day=1).isoformat(), bugun.isoformat())}",

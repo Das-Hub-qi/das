@@ -21,7 +21,7 @@ import requests
 import yaml
 
 from . import llm, m04_senaryo, optimizasyon as opt
-from .ayarlar import OGRENILEN, VERI, Ayarlar, csv_oku, json_oku, json_yaz, log, ozet_yaz
+from .ayarlar import OGRENILEN, KANAL_VERI as VERI, Ayarlar, csv_oku, json_oku, json_yaz, log, ozet_yaz
 
 GUNLUK = VERI / "muhendis_gunlugu.md"
 DERSLER = VERI / "ogrenilen_dersler.json"
@@ -354,10 +354,10 @@ def calistir(ayar: Ayarlar) -> list[str]:
         log.warning("Ders çıkarılamadı: %s", e)
     degisiklik += model_gozcusu(ayar, bugun)
     if sorunlar:
-        issue_ac(ayar, f"🛠️ Öğrenme Mühendisi: dikkat gereken sorunlar ({bugun:%Y-%m-%d} haftası)",
+        issue_ac(ayar, f"🛠️ Öğrenme Mühendisi [{ayar.kanal}]: dikkat gereken sorunlar ({bugun:%Y-%m-%d} haftası)",
                  "Aşağıdaki sorunlar ayarla çözülemedi; insan veya kod müdahalesi gerekiyor:\n\n"
                  + "\n".join(f"- {s}" for s in sorunlar))
-    satirlar = [f"## {bugun} — Öğrenme Mühendisi"]
+    satirlar = [f"## {bugun} — Öğrenme Mühendisi · kanal `{ayar.kanal}`"]
     satirlar += [f"- 🔧 {d}" for d in degisiklik] or ["- Değişiklik gerekmedi (yeterli veri yok veya sistem dengede)."]
     satirlar += [f"- ⚠️ {s}" for s in sorunlar]
     eski = GUNLUK.read_text(encoding="utf-8") if GUNLUK.exists() else "# Öğrenme Mühendisi Günlüğü\n"

@@ -1,53 +1,10 @@
 # ============================================================
-# DİJİTAL VARLIKLAR — alan adları, kanal, nişler, ortaklık linkleri
+# DİJİTAL VARLIKLAR — alan adları ve iletişim (kanallar: config/kanallar/)
 # Bu dosyayı kendi bilgilerinize göre düzenleyin.
 # ============================================================
 
-youtube_kanallari:
-  - ad: "Ana Kanal"
-    kanal_id: ""             # YouTube Studio > Ayarlar > Kanal > Gelişmiş'te "UC..." ile başlar
-
-# Her nişin bir "ev sahibi" alan adı vardır: videolar trafiği o siteye yollar,
-# site de videolara geri yollar (çift yönlü büyüme, ek maliyet yok).
-nisler:
-  - kod: "noro"
-    ad: "Nörobilim ve Beyin Sağlığı"
-    alan_adi: "trustneurohub.com.tr"
-    hedef_kitle: "Kendini geliştirmek isteyen 20-45 yaş arası meraklı yetişkinler"
-    tohum_kelimeler:
-      - "beyin sağlığı"
-      - "odaklanma nasıl artırılır"
-      - "dopamin"
-      - "uyku ve hafıza"
-      - "nöropazarlama"
-      - "stres beyin"
-    ortaklik_linkleri:       # "kısa_ad: hedef_url". Açıklamaya otomatik eklenir.
-      # kitap-onerisi: "https://www.amazon.com.tr/...?tag=SIZIN-ETIKETINIZ"
-
-  - kod: "bilisim"
-    ad: "Bilişim, Otomasyon ve Yapay Zekâ"
-    alan_adi: "okyanusbilisimtr.com"
-    hedef_kitle: "Yapay zekâ ve otomasyonla işini kolaylaştırmak isteyen çalışanlar, öğrenciler, KOBİ'ler"
-    tohum_kelimeler:
-      - "yapay zeka ile para kazanma"
-      - "python otomasyon"
-      - "ücretsiz yapay zeka araçları"
-      - "excel otomasyon"
-      - "bulut bilişim nedir"
-    ortaklik_linkleri:
-      # python-kursu: "https://www.udemy.com/...?referralCode=..."
-
-  - kod: "turizm"
-    ad: "Turizm ve Seyahat"
-    alan_adi: ""             # turizm alan adınızı buraya yazın (ör. "ornekturizm.com")
-    hedef_kitle: "Türkiye içinde bütçe dostu tatil arayan aileler ve gezginler"
-    tohum_kelimeler:
-      - "ucuz tatil"
-      - "kapadokya gezi rehberi"
-      - "her şey dahil otel"
-      - "karadeniz turu"
-    ortaklik_linkleri:
-      # otel-ara: "https://... (otel/tur ortaklık programı linkiniz)"
+# Kanallar ve nişler artık config/kanallar/<kod>.yaml dosyalarında (her kanal ayrı dosya).
+# Bir nişin "alan_adi" alanı, o nişin videolarının yazılarının hangi sitede yayınlanacağını belirler.
 
 # Alan adı satış / kiralama bilgileri
 alan_adlari:

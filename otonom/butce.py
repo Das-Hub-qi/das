@@ -9,9 +9,9 @@ from __future__ import annotations
 import calendar
 import os
 
-from .ayarlar import VERI, Ayarlar, csv_ekle, csv_oku, uyari_ekle
+from .ayarlar import ISLETME, Ayarlar, csv_ekle, csv_oku, isletme_dosyalari, uyari_ekle
 
-DOSYA = VERI / "calismalar.csv"
+DOSYA = ISLETME / "calismalar.csv"
 KURULUM_PAYI_DK = 3  # her çalıştırmada kurulum adımlarının (paket, ffmpeg) yaklaşık süresi
 
 
@@ -31,7 +31,8 @@ def kaydet(ayar: Ayarlar, komut: str, saniye: float) -> None:
 
 def bu_ay(ayar: Ayarlar) -> float:
     ay = ayar.simdi.strftime("%Y-%m")
-    return sum(float(s["dakika"]) for s in csv_oku(DOSYA) if s["tarih"].startswith(ay))
+    return sum(float(s["dakika"]) for d in isletme_dosyalari("calismalar.csv") for s in csv_oku(d)
+               if s["tarih"].startswith(ay))
 
 
 def tahmin(ayar: Ayarlar) -> float:

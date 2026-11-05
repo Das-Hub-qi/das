@@ -15,7 +15,7 @@ from datetime import date
 import markdown
 
 from . import cloudflare_kur
-from .ayarlar import CLOUDFLARE_SABLON, SITE, VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
+from .ayarlar import CLOUDFLARE_SABLON, KANALLAR_VERI, SITE, VERI, Ayarlar, csv_oku, json_oku, json_yaz, kisa_ad, log
 
 CSS = """
 :root{--bg:#fff;--fg:#1f2937;--muted:#6b7280;--kart:#f3f4f6;--vurgu:#10b981}
@@ -78,20 +78,29 @@ def _satis_kutusu(a: dict, one_cikan: bool) -> str:
 <small>Bilgileriniz yalnızca teklifinize yanıt vermek için kullanılır.</small></form></section>"""
 
 
-def _makaleler(ayar: Ayarlar, nis_kodu: str) -> list[dict]:
-    yt = {s["kod"]: s["youtube_id"] for s in csv_oku(VERI / "yayinlananlar.csv")
+def _tum_nisler(ayar: Ayarlar) -> list[tuple[str, dict]]:
+    """Tüm etkin kanalların nişleri: [(kanal_kodu, niş)]."""
+    from .ayarlar import tum_kanallar
+    return [(k.kanal, n) for k in tum_kanallar(ayar.deneme) for n in k.nisler]
+
+
+def _makaleler(eslesen: set[tuple[str, str]]) -> list[dict]:
+    """Bu siteye bağlı (kanal, niş) çiftlerinin tüm kanallardaki yazıları, en yeni önce."""
+    yt = {s["kod"]: s["youtube_id"] for d in sorted(KANALLAR_VERI.glob("*/yayinlananlar.csv")) for s in csv_oku(d)
           if s["tur"] == "uzun" and s.get("youtube_id") and not s["youtube_id"].startswith("DENEME")}
     liste = []
-    for dosya in sorted((VERI / "videolar").glob("*/icerik.json"), reverse=True):
+    for dosya in KANALLAR_VERI.glob("*/videolar/*/icerik.json"):
         ic = json_oku(dosya)
-        if ic and ic["plan"]["nis"] == nis_kodu:
-            liste.append({**ic["makale"], "kod": ic["plan"]["kod"], "youtube_id": yt.get(ic["plan"]["kod"], "")})
-    return liste
+        kanal = ic.get("plan", {}).get("kanal") or dosya.parent.parent.parent.name if ic else ""
+        if ic and (kanal, ic["plan"]["nis"]) in eslesen:
+            liste.append({**ic["makale"], "kod": ic["plan"]["kod"], "youtube_id": yt.get(ic["plan"]["kod"], ""),
+                          "_sira": dosya.stat().st_mtime})
+    return sorted(liste, key=lambda m: -m["_sira"])
 
 
-def _kisa_linkler(ayar: Ayarlar) -> dict[str, str]:
+def _kisa_linkler(nisler: list[tuple[str, dict]]) -> dict[str, str]:
     linkler: dict[str, str] = {}
-    for n in ayar.nisler:
+    for _, n in nisler:
         linkler.update({k.lower(): v for k, v in (n.get("ortaklik_linkleri") or {}).items() if v})
     return linkler
 
@@ -100,6 +109,7 @@ def olustur(ayar: Ayarlar) -> list[str]:
     import json
 
     projeler = []
+    tum_nisler = _tum_nisler(ayar)
     kisa_alan = ayar.varliklar.get("iletisim", {}).get("kisa_link_alan_adi", "")
     for a in ayar.alan_adlari:
         alan, mod = a["ad"], a.get("mod", "site_ve_satis")
@@ -109,8 +119,10 @@ def olustur(ayar: Ayarlar) -> list[str]:
             shutil.rmtree(kok)
         pub = kok / "public"
         pub.mkdir(parents=True)
-        nis = next((n for n in ayar.nisler if n.get("alan_adi") == alan), None)
-        makaleler = _makaleler(ayar, nis["kod"]) if (nis and mod in ("site_ve_satis", "sadece_site")) else []
+        bagli = [(k, n) for k, n in tum_nisler if n.get("alan_adi") == alan]
+        nis = bagli[0][1] if bagli else None
+        makaleler = (_makaleler({(k, n["kod"]) for k, n in bagli})
+                     if (bagli and mod in ("site_ve_satis", "sadece_site")) else [])
         satis = mod in ("site_ve_satis", "sadece_satis", "park")
         adresler = ["/"]
 
@@ -164,7 +176,7 @@ def olustur(ayar: Ayarlar) -> list[str]:
         if satis:
             (kok / "functions" / "api").mkdir(parents=True)
             shutil.copy(CLOUDFLARE_SABLON / "functions" / "api" / "teklif.js", kok / "functions" / "api" / "teklif.js")
-        linkler = _kisa_linkler(ayar)
+        linkler = _kisa_linkler(tum_nisler)
         if alan == kisa_alan and linkler:
             (kok / "functions" / "git").mkdir(parents=True, exist_ok=True)
             sablon = (CLOUDFLARE_SABLON / "functions" / "git" / "[kisa].js").read_text(encoding="utf-8")

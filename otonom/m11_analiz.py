@@ -14,7 +14,7 @@ from datetime import date, datetime
 
 import requests
 
-from .ayarlar import VERI, Ayarlar, csv_ekle, csv_oku, gizli, json_oku, json_yaz, log, ozet_yaz
+from .ayarlar import KANAL_VERI as VERI, Ayarlar, csv_ekle, csv_oku, gizli, json_oku, json_yaz, log, ozet_yaz
 
 METRIK_ALANLARI = ["tarih", "youtube_id", "kod", "nis", "tur", "goruntulenme", "begeni", "yorum",
                    "izlenme_dakika", "ort_izlenme_sn", "ort_izlenme_yuzde", "abone_kazanimi"]
@@ -97,7 +97,8 @@ def ogrenim(ayar: Ayarlar, olgun: list[dict], bugun: date) -> dict:
 
     gozlem = opt.gozlemleri_topla(olgun, m04_senaryo.yukle)
     yo = float(ayar["optimizasyon"]["yari_omur_gun"])
-    deneyler = {"nis": [n["kod"] for n in ayar.nisler], **ayar["optimizasyon"]["deneyler"]}
+    kaynaklar = sorted({k.get("tur", "youtube_oneri") for n in ayar.nisler for k in n.get("kaynaklar") or []} | {"model"})
+    deneyler = {"nis": [n["kod"] for n in ayar.nisler], **ayar["optimizasyon"]["deneyler"], "kaynak": kaynaklar}
     olasilik = {ad: opt.kazanma_olasiligi(opt.posterior(opt.yasli(gozlem.get(ad, []), bugun), kollar, yo))
                 for ad, kollar in deneyler.items() if kollar}
     veri = {"guncelleme": bugun.isoformat(), "gozlemler": gozlem, "olasiliklar": olasilik}

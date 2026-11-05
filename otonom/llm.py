@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .ayarlar import VERI, Ayarlar, csv_ekle, gizli, log
+from .ayarlar import ISLETME, Ayarlar, csv_ekle, gizli, isletme_dosyalari, log
 
 # 1M token başına $ (girdi, çıktı) — Anthropic fiyat listesi
 FIYATLAR = {
@@ -28,18 +28,37 @@ FIYATLAR = {
     "claude-sonnet-5-5": (2.00, 10.00),
     "claude-opus-5-5": (4.00, 20.00),
 }
-MALIYET_DOSYASI = VERI / "maliyet.csv"
+MALIYET_DOSYASI = ISLETME / "maliyet.csv"
 
 
 class LLMHatasi(RuntimeError):
     pass
 
 
-def saglayici(ayar: Ayarlar) -> str:
+def _var_mi(ad: str) -> bool:
+    if ad == "claude":
+        return bool(gizli("ANTHROPIC_API_KEY") or gizli("ANTHROPIC_AUTH_TOKEN"))
+    if ad == "cloudflare":
+        return bool(gizli("CLOUDFLARE_API_TOKEN") and gizli("CLOUDFLARE_ACCOUNT_ID"))
+    return True
+
+
+def saglayici_zinciri(ayar: Ayarlar) -> list[str]:
+    """Denenecek yapay zekâ sağlayıcıları, sırayla. Biri kullanılamazsa (kredi, kota, ağ) sıradaki denenir.
+    otomatik  : Claude (anahtar varsa) -> Cloudflare Workers AI (ücretsiz günlük kota) -> yerel model
+    claude    : Claude -> Cloudflare -> yerel     cloudflare: Cloudflare -> yerel     yerel: yalnızca yerel"""
     secim = ayar["llm"].get("saglayici", "otomatik")
-    if secim == "otomatik":
-        return "claude" if (gizli("ANTHROPIC_API_KEY") or gizli("ANTHROPIC_AUTH_TOKEN")) else "yerel"
-    return secim
+    sira = {"otomatik": ["claude", "cloudflare", "yerel"], "claude": ["claude", "cloudflare", "yerel"],
+            "cloudflare": ["cloudflare", "yerel"], "yerel": ["yerel"]}.get(secim, ["yerel"])
+    if not ayar["llm"].get("cloudflare_metin_modeli"):
+        sira = [x for x in sira if x != "cloudflare"]
+    zincir = [x for x in sira if _var_mi(x)]
+    return zincir or ["yerel"]
+
+
+def saglayici(ayar: Ayarlar) -> str:
+    """Bu çalıştırmada ilk denenecek sağlayıcı."""
+    return saglayici_zinciri(ayar)[0]
 
 
 def toplu_mu(ayar: Ayarlar) -> bool:
@@ -55,7 +74,8 @@ def _istemci():
             "ANTHROPIC_API_KEY tanımlı değil. GitHub > Settings > Secrets'a ekleyin "
             "veya test için --deneme kullanın."
         )
-    return anthropic.Anthropic(max_retries=4)
+    anahtar = gizli("ANTHROPIC_API_KEY")  # GitHub'da toplu gizlilerden (TUM_GIZLILER) de okunur
+    return anthropic.Anthropic(api_key=anahtar, max_retries=4) if anahtar else anthropic.Anthropic(max_retries=4)
 
 
 def _parametreler(model: str, sistem: str, istem: str, sema: dict, efor: str, max_tokens: int) -> dict:
@@ -156,6 +176,36 @@ def _claude_json(ayar: Ayarlar, gorev: str, sistem: str, istem: str, sema: dict,
     return _mesajdan_json(mesaj, gorev)
 
 
+def _cloudflare_json(ayar: Ayarlar, gorev: str, sistem: str, istem: str, sema: dict, max_tokens: int) -> dict:
+    """Cloudflare Workers AI (hesabın ücretsiz günlük kotası). JSON şeması 'json_schema' kipiyle istenir."""
+    import requests
+
+    model = ayar["llm"]["cloudflare_metin_modeli"]
+    url = f"https://api.cloudflare.com/client/v4/accounts/{gizli('CLOUDFLARE_ACCOUNT_ID')}/ai/run/{model}"
+    try:
+        r = requests.post(url, timeout=300, headers={"Authorization": f"Bearer {gizli('CLOUDFLARE_API_TOKEN')}"},
+                          json={"messages": [{"role": "system", "content": sistem}, {"role": "user", "content": istem}],
+                                "max_tokens": min(max_tokens, 8000),
+                                "response_format": {"type": "json_schema", "json_schema": sema}})
+        veri = r.json()
+    except (requests.RequestException, ValueError) as e:
+        raise LLMHatasi(f"[{gorev}] Cloudflare Workers AI erişilemedi: {e}") from e
+    if not veri.get("success"):
+        raise LLMHatasi(f"[{gorev}] Cloudflare Workers AI hatası (kota dolmuş olabilir): {veri.get('errors')}")
+    cevap = (veri.get("result") or {}).get("response")
+    csv_ekle(MALIYET_DOSYASI, [{"gorev": gorev, "model": "cloudflare:" + model, "toplu": 0,
+                                "girdi_token": (veri.get("result") or {}).get("usage", {}).get("prompt_tokens", 0),
+                                "cikti_token": (veri.get("result") or {}).get("usage", {}).get("completion_tokens", 0),
+                                "onbellek_okunan": 0, "dolar": "0"}],
+             ["gorev", "model", "toplu", "girdi_token", "cikti_token", "onbellek_okunan", "dolar"])
+    if isinstance(cevap, dict):
+        return cevap
+    try:
+        return json.loads(cevap or "")
+    except (json.JSONDecodeError, TypeError) as e:
+        raise LLMHatasi(f"[{gorev}] Cloudflare geçersiz JSON döndürdü: {e}") from e
+
+
 def json_uret(
     ayar: Ayarlar,
     gorev: str,
@@ -168,20 +218,30 @@ def json_uret(
 ) -> dict:
     """Tek, anlık istek. Deneme modunda `sahte()` çıktısını döner.
 
-    Yedek zinciri: Claude kullanılamazsa (kredi bitti, kota, ağ, geçersiz anahtar) iş durmaz,
-    ücretsiz yerel modelle devam edilir ve DURUM.md'de uyarı gösterilir.
+    Yedek zinciri: bir sağlayıcı kullanılamazsa (kredi bitti, günlük kota, ağ, geçersiz anahtar) iş durmaz,
+    sıradaki denenir; en sonda her zaman ücretsiz yerel model vardır. Geçişler DURUM.md'de görünür.
     """
     if ayar.deneme:
         return sahte()
-    if saglayici(ayar) == "claude":
+    from .ayarlar import uyari_ekle
+
+    zincir = saglayici_zinciri(ayar)
+    if "yerel" not in zincir and yerel_kullanilabilir():
+        zincir = zincir + ["yerel"]
+    son_hata: LLMHatasi | None = None
+    for i, ad in enumerate(zincir):
         try:
-            return _claude_json(ayar, gorev, sistem, istem, sema, efor, max_tokens)
+            if ad == "claude":
+                return _claude_json(ayar, gorev, sistem, istem, sema, efor, max_tokens)
+            if ad == "cloudflare":
+                return _cloudflare_json(ayar, gorev, sistem, istem, sema, max_tokens)
+            return _yerel_json(ayar, gorev, sistem, istem, sema, max_tokens)
         except LLMHatasi as e:
-            if "reddetti" in str(e) or not yerel_kullanilabilir():
+            son_hata = e
+            if "reddetti" in str(e) or i == len(zincir) - 1:
                 raise
-            from .ayarlar import uyari_ekle
-            uyari_ekle("yapay zekâ", f"Claude kullanılamadı ({e}); ücretsiz yerel modelle devam edildi.")
-    return _yerel_json(ayar, gorev, sistem, istem, sema, max_tokens)
+            uyari_ekle("yapay zekâ", f"{ad} kullanılamadı ({str(e)[:160]}); {zincir[i + 1]} ile devam edildi.")
+    raise son_hata or LLMHatasi(f"[{gorev}] hiçbir yapay zekâ sağlayıcısı kullanılamadı")
 
 
 # ------------------------------------------------------------- toplu işlem
@@ -232,4 +292,4 @@ def toplu_sonuc(ayar: Ayarlar, batch_id: str) -> dict[str, dict | str] | None:
 def toplam_maliyet() -> float:
     from .ayarlar import csv_oku
 
-    return sum(float(s["dolar"]) for s in csv_oku(MALIYET_DOSYASI))
+    return sum(float(s["dolar"]) for d in isletme_dosyalari("maliyet.csv") for s in csv_oku(d))

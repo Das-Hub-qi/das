@@ -19,13 +19,23 @@ from zoneinfo import ZoneInfo
 import yaml
 
 KOK = Path(__file__).resolve().parent.parent
-CONFIG = KOK / "config"
+CONFIG = Path(os.environ["OTONOM_CONFIG"]) if os.environ.get("OTONOM_CONFIG") else KOK / "config"
 CLOUDFLARE_SABLON = KOK / "cloudflare"
 # Deneme modunda gerçek verilere dokunmamak için çalışma klasörü değiştirilebilir.
 _CALISMA = Path(os.environ["OTONOM_CALISMA"]) if os.environ.get("OTONOM_CALISMA") else KOK
 VERI = _CALISMA / "veri"     # git'e işlenen kalıcı veriler (küçük dosyalar)
 CIKTI = _CALISMA / "cikti"   # büyük üretim dosyaları (git'e işlenmez)
 SITE = _CALISMA / "site"     # üretilen statik siteler (Cloudflare Pages'e yüklenir)
+
+# ÇOK KANAL: her kanalın ayarı config/kanallar/<kod>.yaml, verisi veri/kanallar/<kod>/ altında.
+# Kanal işi '--kanal <kod>' ile ayrı süreçte (GitHub'da ayrı paralel işte) çalışır; bu süreçte
+# yazılan her dosya kanalın kendi klasöründedir -> paralel işler birbirinin dosyasına dokunmaz.
+KANAL_CONFIG = CONFIG / "kanallar"
+KANALLAR_VERI = VERI / "kanallar"
+KANAL_MODU = bool(os.environ.get("OTONOM_KANAL", "").strip())
+KANAL = os.environ.get("OTONOM_KANAL", "").strip() or "ana"
+KANAL_VERI = KANALLAR_VERI / KANAL
+ISLETME = KANAL_VERI if KANAL_MODU else VERI   # kota, uyarı, maliyet, süre kayıtlarının bu süreçteki yeri
 
 log = logging.getLogger("otonom")
 
@@ -47,8 +57,20 @@ _env_dosyasi_yukle()
 
 
 def gizli(ad: str) -> str:
-    """Ortam değişkeninden gizli bilgi okur; yoksa boş döner."""
-    return os.environ.get(ad, "").strip()
+    """Gizli bilgiyi ortam değişkeninden okur. GitHub'da tüm Secrets 'TUM_GIZLILER' içinde de gelir:
+    böylece her yeni kanalın anahtarı (ör. YT_REFRESH_TOKEN_TARIH) iş akışını değiştirmeden okunur."""
+    deger = os.environ.get(ad, "").strip()
+    if not deger and os.environ.get("TUM_GIZLILER"):
+        try:
+            deger = str(json.loads(os.environ["TUM_GIZLILER"]).get(ad) or "").strip()
+        except ValueError:
+            pass
+    return deger
+
+
+def isletme_dosyalari(ad: str) -> list[Path]:
+    """Genel + tüm kanalların aynı adlı işletme dosyaları (toplam hesapları için)."""
+    return [VERI / ad] + sorted(KANALLAR_VERI.glob(f"*/{ad}"))
 
 
 @dataclass
@@ -58,6 +80,8 @@ class Ayarlar:
     deneme: bool = False      # True = dış servis çağrısı yok, sahte veriyle uçtan uca test
     yukleme: bool = True      # False = videolar üretilir ama YouTube'a yüklenmez (beta)
     mod: str = "normal"       # bütçe modu: normal | azaltilmis | hafif (butce.py belirler)
+    kanal: str = "ana"        # bu ayarların ait olduğu kanal
+    kanal_bilgi: dict = field(default_factory=dict)
     simdi: datetime = field(default_factory=lambda: datetime.now(ZoneInfo("Europe/Istanbul")))
 
     def __getitem__(self, anahtar: str) -> Any:
@@ -83,7 +107,9 @@ VARSAYILAN: dict[str, Any] = {
     "saat_dilimi": "Europe/Istanbul",
     "llm": {"saglayici": "otomatik", "yerel_model": "unsloth/gemma-4-E2B-it-GGUF",
             "yerel_dosya": "gemma-4-E2B-it-Q4_K_M.gguf", "yerel_baglam": 10240, "yerel_sicaklik": 0.7,
-            "model": "claude-haiku-5-5", "toplu_islem": True, "senaryo_efor": "medium", "kisa_is_efor": "low"},
+            "model": "claude-haiku-5-5", "toplu_islem": True, "senaryo_efor": "medium", "kisa_is_efor": "low",
+            "cloudflare_metin_modeli": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "cloudflare_gorsel_modeli": "@cf/black-forest-labs/flux-1-schnell"},
     "youtube": {"haftalik_uzun_video": 3, "video_basina_shorts": 2, "hedef_kelime": 1100, "kategori_id": "27",
                 "gizlilik": "private", "yayin_gunleri": ["sali", "persembe", "cumartesi"], "yayin_saati": "18:00",
                 "altyazi_yukle": True, "sentetik_medya_beyani": False},
@@ -100,9 +126,9 @@ VARSAYILAN: dict[str, Any] = {
     "teklifler": {"otomatik_yanit": False},
     "muhendis": {"otomatik_uygula": True, "ders_cikar": True, "github_issue": True, "kilitli": []},
 }
-OGRENILEN = VERI / "ogrenilen_ayarlar.yaml"   # Öğrenme Mühendisi'nin yönettiği katman (silinirse sıfırlanır)
+OGRENILEN = KANAL_VERI / "ogrenilen_ayarlar.yaml"   # Öğrenme Mühendisi katmanı (kanal başına; silinirse sıfırlanır)
 SECENEKLER = {
-    ("llm", "saglayici"): {"otomatik", "yerel", "claude"},
+    ("llm", "saglayici"): {"otomatik", "yerel", "claude", "cloudflare"},
     ("youtube", "gizlilik"): {"private", "zamanla"},
 }
 
@@ -143,31 +169,66 @@ def _kilitlileri_cikar(ogrenilen: dict, kilitli: list[str]) -> dict:
     return ogrenilen
 
 
-def yukle(deneme: bool = False) -> Ayarlar:
+def kanal_listesi(sadece_aktif: bool = True) -> list[str]:
+    """config/kanallar/*.yaml içindeki kanal kodları. Hiç yoksa tek kanal: 'ana'."""
+    kodlar = []
+    for d in sorted(KANAL_CONFIG.glob("*.yaml")) if KANAL_CONFIG.exists() else []:
+        if not sadece_aktif or _yaml_oku(d).get("aktif", True):
+            kodlar.append(d.stem)
+    return kodlar or ["ana"]
+
+
+def kanal_bilgisi(kod: str, varliklar: dict | None = None) -> dict:
+    dosya = KANAL_CONFIG / f"{kod}.yaml"
+    if dosya.exists():
+        return _yaml_oku(dosya)
+    varliklar = varliklar or {}
+    if kod == "ana" and varliklar.get("nisler"):  # eski tek kanallı yapı ile uyumluluk
+        k = (varliklar.get("youtube_kanallari") or [{}])[0]
+        return {"ad": k.get("ad", "Ana Kanal"), "kanal_id": k.get("kanal_id", ""), "nisler": varliklar["nisler"]}
+    return {}
+
+
+def yukle(deneme: bool = False, kanal: str | None = None) -> Ayarlar:
+    kanal = kanal or KANAL
     genel = _birlestir(VARSAYILAN, _yaml_oku(CONFIG / "ayarlar.yaml"))
     varliklar = _yaml_oku(CONFIG / "varliklar.yaml")
-    # Öğrenme Mühendisi katmanı: kullanıcının dosyasına dokunmadan, üzerine uygulanır.
-    ogrenilen = _yaml_oku(OGRENILEN) if OGRENILEN.exists() else {}
+    kb = kanal_bilgisi(kanal, varliklar)
+    genel = _birlestir(genel, kb.get("ayarlar") or {})          # kanalın kendi ayar farkları
+    nisler = [dict(n) for n in kb.get("nisler") or [] if isinstance(n, dict)]
+    # Öğrenme Mühendisi katmanı (kanal başına): kullanıcının dosyalarına dokunmadan üzerine uygulanır.
+    ogr_dosya = KANALLAR_VERI / kanal / "ogrenilen_ayarlar.yaml"
+    ogrenilen = _yaml_oku(ogr_dosya) if ogr_dosya.exists() else {}
     if genel["muhendis"]["otomatik_uygula"] and ogrenilen:
         ogrenilen = _kilitlileri_cikar(ogrenilen, genel["muhendis"]["kilitli"])
         ek_tohum = ogrenilen.pop("nis_tohumlari", {}) or {}
         genel = _birlestir(genel, ogrenilen)
-        for n in varliklar.get("nisler") or []:
-            if isinstance(n, dict) and ek_tohum.get(n.get("kod")):
+        for n in nisler:
+            if ek_tohum.get(n.get("kod")):
                 n["tohum_kelimeler"] = list(dict.fromkeys((n.get("tohum_kelimeler") or []) + ek_tohum[n["kod"]]))
     for (bolum, anahtar), gecerli in SECENEKLER.items():
         if genel[bolum][anahtar] not in gecerli:
-            raise AyarHatasi(f"\n❌ ayarlar.yaml > {bolum}.{anahtar} = '{genel[bolum][anahtar]}' geçersiz. "
+            raise AyarHatasi(f"\n❌ {kanal}: {bolum}.{anahtar} = '{genel[bolum][anahtar]}' geçersiz. "
                              f"Seçenekler: {', '.join(sorted(gecerli))}")
-    for n in varliklar.get("nisler") or []:
-        if not isinstance(n, dict) or not n.get("kod") or not n.get("tohum_kelimeler"):
-            raise AyarHatasi("\n❌ varliklar.yaml > nisler: her nişin 'kod' ve 'tohum_kelimeler' alanı olmalı.")
+    for n in nisler:
+        if not n.get("kod"):
+            raise AyarHatasi(f"\n❌ kanallar/{kanal}.yaml > nisler: her nişin bir 'kod' alanı olmalı.")
         n.setdefault("ad", n["kod"])
-        n.setdefault("hedef_kitle", "Genel izleyici")
+        n.setdefault("hedef_kitle", kb.get("hedef_kitle") or "Genel izleyici")
         n.setdefault("alan_adi", "")
-    for k in (VERI, CIKTI):
+        n.setdefault("tohum_kelimeler", [])
+        n.setdefault("kaynaklar", [{"tur": "youtube_oneri"}])
+        if not n["tohum_kelimeler"] and all(k.get("tur") == "youtube_oneri" for k in n["kaynaklar"]):
+            raise AyarHatasi(f"\n❌ kanallar/{kanal}.yaml > {n['kod']}: 'tohum_kelimeler' veya başka bir kaynak gerekli.")
+    varliklar["nisler"] = nisler
+    varliklar["youtube_kanallari"] = [{"ad": kb.get("ad", kanal), "kanal_id": kb.get("kanal_id", "")}]
+    for k in (VERI, CIKTI, KANALLAR_VERI / kanal):
         k.mkdir(parents=True, exist_ok=True)
-    return Ayarlar(genel=genel, varliklar=varliklar, deneme=deneme)
+    return Ayarlar(genel=genel, varliklar=varliklar, deneme=deneme, kanal=kanal, kanal_bilgi=kb)
+
+
+def tum_kanallar(deneme: bool = False) -> list[Ayarlar]:
+    return [yukle(deneme, k) for k in kanal_listesi()]
 
 
 # ---------------------------------------------------------------- yardımcılar
@@ -213,13 +274,13 @@ def csv_ekle(yol: Path, satirlar: list[dict[str, Any]], alanlar: list[str]) -> N
 def uyari_ekle(kategori: str, metin: str) -> None:
     """Sınıra takılma/yedeğe geçme gibi olayları kaydeder; DURUM.md panelinde gösterilir."""
     log.warning("[%s] %s", kategori, metin)
-    yol = VERI / "uyarilar.json"
+    yol = ISLETME / "uyarilar.json"
     liste = json_oku(yol, [])
     zaman = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M")
     if liste and liste[-1].get("metin") == metin:   # aynı uyarıyı üst üste yazma
         liste[-1]["zaman"] = zaman
     else:
-        liste.append({"zaman": zaman, "kategori": kategori, "metin": metin})
+        liste.append({"zaman": zaman, "kategori": kategori, "metin": metin, "kanal": KANAL if KANAL_MODU else ""})
     json_yaz(yol, liste[-40:])
 
 

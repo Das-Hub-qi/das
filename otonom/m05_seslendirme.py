@@ -53,27 +53,36 @@ def _sessiz(yol: Path, saniye: float) -> None:
          "-t", f"{saniye:.2f}", "-q:a", "9", str(yol)], check=True)
 
 
-PIPER_SESI = "tr_TR-dfki-medium"
-PIPER_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/"
+# Çevrimdışı yedek sesler (dil -> HuggingFace rhasspy/piper-voices yolu)
+PIPER_SESLERI = {
+    "tr": "tr/tr_TR/dfki/medium/tr_TR-dfki-medium",
+    "en": "en/en_US/lessac/medium/en_US-lessac-medium",
+    "de": "de/de_DE/thorsten/medium/de_DE-thorsten-medium",
+    "es": "es/es_ES/davefx/medium/es_ES-davefx-medium",
+    "fr": "fr/fr_FR/siwis/medium/fr_FR-siwis-medium",
+}
 
 
-def _piper_modeli() -> Path:
+def _piper_modeli(dil: str = "tr") -> Path:
     import requests
 
     from .yerel_llm import model_dizini
 
+    yol = PIPER_SESLERI.get(dil, PIPER_SESLERI["tr"])
     klasor = model_dizini() / "piper"
     klasor.mkdir(parents=True, exist_ok=True)
+    ad = yol.rsplit("/", 1)[1]
     for ek in (".onnx.json", ".onnx"):
-        dosya = klasor / (PIPER_SESI + ek)
+        dosya = klasor / (ad + ek)
         if not dosya.exists():
-            r = requests.get(PIPER_URL + dosya.name, timeout=120, headers={"User-Agent": "otonom-icerik-sistemi/1.0"})
+            r = requests.get(f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{yol}{ek}", timeout=120,
+                             headers={"User-Agent": "otonom-icerik-sistemi/1.0"})
             r.raise_for_status()
             dosya.write_bytes(r.content)
-    return klasor / (PIPER_SESI + ".onnx")
+    return klasor / (ad + ".onnx")
 
 
-def _piper(metin: str, yol: Path) -> list[tuple[float, float, str]]:
+def _piper(metin: str, yol: Path, dil: str = "tr") -> list[tuple[float, float, str]]:
     """Çevrimdışı Türkçe ses. Kelime zamanları harf sayısına göre orantılı tahmin edilir."""
     import wave
 
@@ -82,7 +91,7 @@ def _piper(metin: str, yol: Path) -> list[tuple[float, float, str]]:
     wav = yol.with_suffix(".wav")
     yol.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(wav), "wb") as w:
-        PiperVoice.load(_piper_modeli()).synthesize_wav(metin, w)
+        PiperVoice.load(_piper_modeli(dil)).synthesize_wav(metin, w)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-q:a", "4", str(yol)], check=True)
     wav.unlink(missing_ok=True)
     toplam, kelimeler = sure(yol), metin.split()
@@ -117,7 +126,7 @@ def seslendir(ayar: Ayarlar, metin: str, yol: Path) -> dict:
         time.sleep(2 * (deneme + 1))
     from .ayarlar import uyari_ekle
     uyari_ekle("seslendirme", f"Edge TTS kullanılamadı ({hata}); çevrimdışı Piper Türkçe sesiyle devam edildi.")
-    kel = _piper(metin, yol)
+    kel = _piper(metin, yol, ayar.kanal_bilgi.get("dil", "tr"))
     return {"ses": yol, "sure": sure(yol), "kelimeler": kel}
 
 

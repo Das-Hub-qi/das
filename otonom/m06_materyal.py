@@ -105,12 +105,63 @@ def _indir(url: str) -> Path | None:
         return None
 
 
+_YZ_KAPALI: set[str] = set()   # bu çalıştırmada kotası dolan yapay zekâ görsel servisleri
+
+
+def _yapay_zeka_gorseli(ayar: Ayarlar, sorgu: str, dikey: bool, hedef: Path) -> dict | None:
+    """Stok fotoğraf bulunamazsa yapay zekâyla görsel üretir.
+    1) Cloudflare Workers AI (hesap bağlıysa; logosuz, ücretsiz günlük kota)  2) Pollinations (anahtarsız)."""
+    import base64
+    import random
+
+    istem = f"{sorgu}, cinematic photograph, natural light, high detail, no text, no watermark"
+    model = ayar["llm"].get("cloudflare_gorsel_modeli")
+    if model and "cloudflare" not in _YZ_KAPALI and gizli("CLOUDFLARE_API_TOKEN") and gizli("CLOUDFLARE_ACCOUNT_ID"):
+        try:
+            r = requests.post(
+                f"https://api.cloudflare.com/client/v4/accounts/{gizli('CLOUDFLARE_ACCOUNT_ID')}/ai/run/{model}",
+                headers={"Authorization": f"Bearer {gizli('CLOUDFLARE_API_TOKEN')}"}, timeout=120,
+                json={"prompt": istem, "steps": 4})
+            resim = (r.json().get("result") or {}).get("image") if r.ok else None
+            if resim:
+                hedef.write_bytes(base64.b64decode(resim))
+                return {"url": "", "kaynak": "Yapay zekâ (Cloudflare)", "yazar": "", "sayfa": "", "sentetik": True}
+            _YZ_KAPALI.add("cloudflare")
+            log.warning("Cloudflare görsel üretimi kullanılamadı (kota dolmuş olabilir): %s", r.text[:200])
+        except (requests.RequestException, ValueError) as e:
+            log.warning("Cloudflare görsel hatası: %s", e)
+    if "pollinations" not in _YZ_KAPALI:
+        g, y = (720, 1280) if dikey else (1280, 720)
+        try:
+            r = requests.get("https://image.pollinations.ai/prompt/" + requests.utils.quote(istem), headers=BASLIK,
+                             timeout=120, params={"width": g, "height": y, "nologo": "true",
+                                                  "seed": random.Random(sorgu).randint(1, 10**6)})
+            if r.ok and r.headers.get("content-type", "").startswith("image/"):
+                hedef.write_bytes(r.content)
+                return {"url": "", "kaynak": "Yapay zekâ (Pollinations)", "yazar": "", "sayfa": "", "sentetik": True}
+            if r.status_code == 429:
+                _YZ_KAPALI.add("pollinations")
+        except requests.RequestException as e:
+            log.warning("Pollinations hatası: %s", e)
+    return None
+
+
+STOK_KAYNAKLARI = {"pexels": _pexels, "pixabay": _pixabay, "openverse": _openverse}
+
+
 def gorsel_bul(ayar: Ayarlar, sorgu: str, hedef: Path, kullanilan: set[str], nis: str,
                dikey: bool = False, yedek_yazi: str = "") -> dict:
-    """Videoda daha önce kullanılmamış bir görsel bulur ve `hedef`e kopyalar."""
+    """Videoda daha önce kullanılmamış bir görsel bulur ve `hedef`e yazar.
+    Sıra kanal dosyasındaki 'gorsel_kaynaklari' ile değiştirilebilir (ör. tarih kanalı için yapay zekâ önce)."""
     if not ayar.deneme:
-        for kaynak in (_pexels, _pixabay, _openverse):
-            for aday in kaynak(sorgu, dikey):
+        sira = ayar.kanal_bilgi.get("gorsel_kaynaklari") or ["pexels", "pixabay", "openverse", "yapay_zeka"]
+        for ad in sira:
+            if ad == "yapay_zeka":
+                bilgi = _yapay_zeka_gorseli(ayar, sorgu, dikey, hedef)
+                if bilgi:
+                    return {**bilgi, "dosya": str(hedef), "sorgu": sorgu}
+                continue
+            for aday in STOK_KAYNAKLARI.get(ad, lambda *_: [])(sorgu, dikey):
                 if aday["url"] in kullanilan:
                     continue
                 dosya = _indir(aday["url"])
