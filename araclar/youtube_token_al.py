@@ -1,5 +1,8 @@
 """YouTube yetki anahtarı (refresh token) alma — KENDİ BİLGİSAYARINIZDA BİR KEZ çalıştırın.
 
+NOT: Artık buna gerek yok! "Tek tıkla yetki" (README) ile GitHub'daki konuya "onay" yazman yeterli;
+sistem anahtarı kendisi alır ve kaydeder. Bu betik yalnızca yedek yöntemdir.
+
 Ön hazırlık (README'deki adımlar):
   1. Google Cloud Console'da proje açın, "YouTube Data API v3" ve "YouTube Analytics API"yi etkinleştirin.
   2. OAuth izin ekranı: Kullanıcı türü "Harici", yayın durumunu "Üretimde" (In production) yapın.
@@ -37,7 +40,8 @@ if not dosya.exists():
 
 akis = InstalledAppFlow.from_client_secrets_file(str(dosya), IZINLER)
 kimlik = akis.run_local_server(port=0, prompt="consent", access_type="offline")
-istemci = json.loads(dosya.read_text())["installed"]
+icerik = json.loads(dosya.read_text())
+istemci = icerik.get("installed") or icerik.get("web")
 print("\nAşağıdaki değerleri GitHub Secrets'a ekleyin (ilk ikisi tüm kanallar için bir kez yeterli):\n")
 print(f"YT_CLIENT_ID      = {istemci['client_id']}")
 print(f"YT_CLIENT_SECRET  = {istemci['client_secret']}")

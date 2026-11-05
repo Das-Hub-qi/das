@@ -208,9 +208,10 @@ def olustur(ayar: Ayarlar) -> list[str]:
             (pub / "ads.txt").write_text(f"google.com, {pub_id}, DIRECT, f08c47fec0942fa0\n", encoding="utf-8")
         (pub / "_headers").write_text(guvenlik_basliklari(ayar), encoding="utf-8")
 
-        # Pages Functions
+        # Pages Functions (yetki.js: tek tıkla Google/YouTube onayının dönüş sayfası)
+        (kok / "functions" / "api").mkdir(parents=True)
+        shutil.copy(CLOUDFLARE_SABLON / "functions" / "api" / "yetki.js", kok / "functions" / "api" / "yetki.js")
         if satis:
-            (kok / "functions" / "api").mkdir(parents=True)
             shutil.copy(CLOUDFLARE_SABLON / "functions" / "api" / "teklif.js", kok / "functions" / "api" / "teklif.js")
         linkler = _kisa_linkler(tum_nisler)
         if alan == kisa_alan and linkler:

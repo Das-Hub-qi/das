@@ -472,3 +472,53 @@ def test_site_yazilarinda_video_semasi_ve_og_image():
     assert sayfalar
     sayfa = sayfalar[0].read_text(encoding="utf-8")
     assert '"@type": "VideoObject"' in sayfa and "i.ytimg.com/vi/abcDEF" in sayfa and 'og:image' in sayfa
+
+
+# ------------------------------------------------------------- tek tıkla yetki
+
+def test_yetki_baglantisi_pkce_ve_kanal_secimi():
+    import base64
+    import hashlib
+    from urllib.parse import parse_qs, urlparse
+
+    from otonom import yetki
+    dog, meydan = yetki.pkce()
+    assert meydan == base64.urlsafe_b64encode(hashlib.sha256(dog.encode()).digest()).rstrip(b"=").decode()
+    url = yetki.onay_baglantisi("youtube", "https://a.pages.dev/api/yetki", "123-x.apps", "D" * 43, meydan)
+    q = {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+    assert q["code_challenge_method"] == "S256" and q["code_challenge"] == meydan
+    assert q["access_type"] == "offline" and "select_account" in q["prompt"]
+    assert "youtube.force-ssl" in q["scope"] and q["redirect_uri"].endswith("/api/yetki")
+
+
+def test_yetki_isareti_yalnizca_gecerli_kanal():
+    from otonom import yetki
+    assert yetki.ISARET.search(yetki.isaret("tarih-1", "youtube")).groups() == ("tarih-1", "youtube")
+    assert yetki.ISARET.search("<!-- yetki kanal=../x hizmet=youtube -->") is None
+    assert yetki.ISARET.search("<!-- yetki kanal=ana hizmet=rm -->") is None
+
+
+def test_yetki_yanlis_kanal_kaydedilmez():
+    from otonom import yetki
+    from otonom.ayarlar import KANALLAR_VERI, json_yaz
+    json_yaz(KANALLAR_VERI / "ana" / "youtube_kanali.json", {"id": "UC1", "baslik": "Ana"})
+    assert yetki.baglanti_sorunu("ana", {"id": "UC1", "baslik": "Ana"}) == ""
+    assert "değiştir" in yetki.baglanti_sorunu("ana", {"id": "UC2", "baslik": "Başka"})
+    assert yetki.baglanti_sorunu("ana", {"id": "UC2", "baslik": "Başka"}, degistir=True) == ""
+    assert "zaten" in yetki.baglanti_sorunu("yeni", {"id": "UC1", "baslik": "Ana"})
+
+
+def test_yetki_eposta_ve_kasa_onceligi(monkeypatch):
+    import base64
+    import json
+
+    from otonom import ayarlar, yetki
+    govde = base64.urlsafe_b64encode(json.dumps({"email": "a@b.com"}).encode()).decode().rstrip("=")
+    assert yetki.eposta(f"x.{govde}.y") == "a@b.com" and yetki.eposta("bozuk") == ""
+    monkeypatch.setenv("YT_REFRESH_TOKEN_DENEME", "eski")
+    ayarlar._KASA.clear()
+    assert ayarlar.gizli("YT_REFRESH_TOKEN_DENEME") == "eski"      # Cloudflare yok: kasaya hiç gidilmez
+    ayarlar._KASA["YT_REFRESH_TOKEN_DENEME"] = "yeni"
+    assert ayarlar.gizli("YT_REFRESH_TOKEN_DENEME") == "yeni"      # tek tıkla alınan en yeni anahtar önce gelir
+    assert ayarlar.gizli("PEXELS_API_KEY") == ""                    # başka gizliler kasaya bakmaz
+    ayarlar._KASA.clear()

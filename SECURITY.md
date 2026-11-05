@@ -16,6 +16,7 @@
 | Herkese açık depoda teklif e-postaları/isimleri maskelenir; tam hali yalnızca özel Cloudflare KV'de | `otonom/m12_gelir.py` |
 | Dış kaynaklardan (gündem, RSS) gelen başlıklar temizlenir; komut sokma ve suç/ölüm/kumar/yetişkin konuları elenir | `otonom/m02_nis_analizi.py` |
 | Her kanal yalnızca kendi YouTube anahtarıyla yükler; başka kanala yükleme imkânsız | `otonom/m09_youtube_yukleme.py` |
+| Tek tıkla yetki: PKCE + tek kullanımlık bağlantı (25 dk); kod sitede saklanmaz, anahtara yalnızca GitHub sunucusu çevirebilir; yanlış/başka kanala bağlı YouTube kanalı seçilirse anahtar kaydedilmez; yalnızca depo sahibinin "onay" yorumu çalıştırır | `otonom/yetki.py`, `yetki.yml`, `functions/api/yetki.js` |
 | Yapay zekâ görseli kullanılan videoda YouTube sentetik içerik beyanı otomatik | `otonom/m09_youtube_yukleme.py` |
 
 **Bilinen ve kabul edilen risk:** `diskcache` (yerel model kütüphanesinin alt paketi, PYSEC-2026-2447) yalnızca

@@ -61,6 +61,10 @@ _env_dosyasi_yukle()
 def gizli(ad: str) -> str:
     """Gizli bilgiyi ortam değişkeninden okur. GitHub'da tüm Secrets 'TUM_GIZLILER' içinde de gelir:
     böylece her yeni kanalın anahtarı (ör. YT_REFRESH_TOKEN_TARIH) iş akışını değiştirmeden okunur."""
+    if _KASA_ADI.fullmatch(ad):  # tek tıkla yetkiyle alınan en yeni anahtar (özel Cloudflare KV) önce gelir
+        deger = _kasadan(ad)
+        if deger:
+            return deger
     deger = os.environ.get(ad, "").strip()
     if not deger and os.environ.get("TUM_GIZLILER"):
         try:
@@ -68,6 +72,23 @@ def gizli(ad: str) -> str:
         except ValueError:
             pass
     return deger
+
+
+_KASA_ADI = re.compile(r"YT_REFRESH_TOKEN(_[A-Z0-9_]+)?|GOOGLE_ARAMA_TOKEN")
+_KASA: dict[str, str] = {}
+
+
+def _kasadan(ad: str) -> str:
+    """otonom/yetki.py'nin özel Cloudflare KV kasasına yazdığı anahtar (süreç başına bir kez okunur)."""
+    if ad not in _KASA:
+        _KASA[ad] = ""
+        if gizli("CLOUDFLARE_API_TOKEN") and gizli("CLOUDFLARE_ACCOUNT_ID"):
+            try:
+                from .yetki import kasa_oku
+                _KASA[ad] = kasa_oku(ad)
+            except Exception as e:  # kasa okunamazsa GitHub Secrets'taki anahtarla devam
+                log.warning("Anahtar kasası okunamadı: %s", e)
+    return _KASA[ad]
 
 
 def isletme_dosyalari(ad: str) -> list[Path]:

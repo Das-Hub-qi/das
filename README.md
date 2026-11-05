@@ -129,22 +129,34 @@ Görseller için ayrıca anahtarsız **Pollinations** yapay zekâ görseli son y
 
 Anahtar yoksa anahtarsız Openverse'ten CC0 fotoğraf aranır, o da olmazsa renkli yazı kartı kullanılır.
 
-### C. YouTube (bir kez uygulama + her kanal için bir anahtar)
-1. https://console.cloud.google.com → yeni proje → **APIs & Services > Library**:
-   "YouTube Data API v3" ve "YouTube Analytics API"yi **Enable** et.
-2. **Credentials > Create credentials > API key** → `YOUTUBE_API_KEY` (istatistik ve rekabet analizi).
-3. **OAuth consent screen**: "External", uygulamayı **"In production"** yap (⚠️ "Testing" modunda bağlantı 7 günde kopar).
-4. **Credentials > OAuth client ID > Desktop app** → JSON'u indir, bilgisayarında `client_secret.json`
-   adıyla bu klasöre koy ve çalıştır:
-   ```
-   pip install google-auth-oauthlib
-   python araclar/youtube_token_al.py ana
-   ```
-   Çıkan `YT_CLIENT_ID`, `YT_CLIENT_SECRET` (bir kez) ve `YT_REFRESH_TOKEN_ANA` değerlerini Secrets'a ekle.
-   Diğer kanallar için: `python araclar/youtube_token_al.py <kanal_kodu>` → `YT_REFRESH_TOKEN_<KANAL>`.
-   Google izin ekranında **doğru kanalı seçtiğinden** emin ol.
-5. Kanalını telefonla doğrula (youtube.com/verify): özel küçük resim için gerekli.
-6. ⚠️ Google, denetimden geçmemiş API projelerinin yüklediği videoları **gizli** tutar. Bu yüzden sistem
+### C. YouTube ve Google — **tek tıkla yetki** (bir kez 10 dk, sonra yalnızca "İzin ver")
+Sistem anahtarları **kendisi alır**. Sen yalnızca telefonuna gelen bağlantıda **İzin ver**'e basarsın.
+Google, uygulama (istemci) oluşturmayı otomatik yaptırmadığı için şu adımlar **bir kez** elle yapılır:
+1. https://console.cloud.google.com → yeni proje. **OAuth consent screen**: "External" seç, uygulamayı
+   **"In production"** yap (⚠️ "Testing" modunda bağlantı 7 günde kopar).
+2. **Credentials > Create credentials > OAuth client ID > Web application**. **Authorized redirect URIs**
+   kısmına `https://<ilk-alan-adın-tireli>.pages.dev/api/yetki` ekle (ör. `https://trustneurohub-com-tr.pages.dev/api/yetki`;
+   adres yanlışsa sistem doğrusunu GitHub konusunda yazar). Çıkan değerleri Secrets'a ekle:
+   `YT_CLIENT_ID`, `YT_CLIENT_SECRET`. **Credentials > API key** → `YOUTUBE_API_KEY`.
+3. *(Önerilir)* Anahtarları sistem GitHub Secrets'a kendisi yazsın: GitHub > Settings > Developer settings >
+   **Fine-grained token** → yalnızca bu depo, izin **Secrets: Read and write** → Secrets'a `GH_YONETICI_TOKEN`.
+   Bu yoksa anahtarlar senin özel Cloudflare KV kasanda saklanır. Bu yöntem de çalışır.
+
+**Sonrası tamamen otomatik:**
+- Sistem her gün anahtarları dener. Eksik ya da bozuk olan kanal için GitHub'da **"🔑 Onay gerekiyor"** konusu açar
+  ve telefonuna bildirim gelir. Yeni kanal açınca da aynı konu kendiliğinden açılır.
+- Konuya **onay** yaz → 1 dakika içinde bir bağlantı gelir → Google'da **o kanalın YouTube kanalını** seç → **İzin ver**.
+- Sistem anahtarı kaydeder. Doğru kanal seçildi mi diye kontrol eder; yanlışsa kaydetmez. Ardından kanalı
+  kurar (açıklama, anahtar kelimeler, oynatma listeleri) ve konuyu kapatır.
+- **İlk olarak** Actions > **Yetki al** > Run workflow > kanal: `google` çalıştır. Bu Google hesabı onayıyla
+  gerekli Google API'leri (YouTube Data, YouTube Analytics, Site Verification, Search Console) **kendiliğinden açılır**
+  ve siteler arama motorlarına kaydedilir.
+- 💡 Yeni kanal için **yeni Gmail açmana gerek yok**: aynı Google hesabında birden çok YouTube kanalı açılabilir
+  (youtube.com/create_channel). Onay ekranında hangi kanalı seçersen sistem ona bağlanır.
+- Yedek yöntem (bilgisayarda): `python araclar/youtube_token_al.py <kanal>`.
+
+- Kanalını telefonla doğrula (youtube.com/verify): özel küçük resim için gerekli.
+- ⚠️ Google, denetimden geçmemiş API projelerinin yüklediği videoları **gizli** tutar. Bu yüzden sistem
    "gizli" yükler, sen Studio'dan yayınlarsın. Tam otomatik yayın için ücretsiz **YouTube API Audit**
    formunu doldur; onaydan sonra `config/ayarlar.yaml` > `gizlilik: "zamanla"` yap.
 

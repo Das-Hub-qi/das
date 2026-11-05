@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from . import butce, buyume, llm
+from . import butce, buyume, llm, yetki
 from .ayarlar import CONFIG, KANALLAR_VERI, VERI, Ayarlar, csv_oku, gizli, isletme_dosyalari, json_oku, ozet_yaz
 from .m09_youtube_yukleme import GUNLUK_KOTA, _kota_gunu, anahtar_adi, kimlik_var
 
@@ -212,6 +212,7 @@ def olustur(ayar: Ayarlar, komut: str, hatalar: list[str]) -> str:
 
     md += ogrenme_bolumu(ayar)
     md += buyume.durum_bolumu(ayar)
+    md += yetki.durum_bolumu()
 
     uyarilar = sorted((u for d in isletme_dosyalari("uyarilar.json") for u in json_oku(d, [])),
                       key=lambda u: u.get("zaman", ""), reverse=True)[:10]

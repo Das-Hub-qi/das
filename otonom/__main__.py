@@ -26,7 +26,7 @@ import time
 
 KANAL_KOMUTLARI = {"haftalik", "gunluk", "beta", "nis", "plan", "uret", "analiz", "muhendis", "buyume"}
 GENEL_KOMUTLAR = {"envanter", "alanadi", "site", "teklifler", "rapor", "maliyet", "cloudflare", "durum",
-                  "yeni_kanal", "kanallar", "arama"}
+                  "yeni_kanal", "kanallar", "arama", "yetki"}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,15 +110,21 @@ def main(argv: list[str] | None = None) -> int:
     elif k == "arama":
         from . import arama_motoru
         arama_motoru.calistir(ayar)
+    elif k == "yetki":
+        from . import yetki
+        yetki.calistir(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
     elif k == "yeni_kanal":
         from . import kanal_sihirbazi
         try:
-            kanal_sihirbazi.olustur(ayar, a.aciklama)
+            yeni = kanal_sihirbazi.olustur(ayar, a.aciklama)
+            if not a.deneme:  # yeni kanalın YouTube onayı için GitHub'da konu aç (sahip "onay" yazar)
+                from . import yetki
+                yetki.onay_konusu(str(yeni), "youtube", "yeni kanal oluşturuldu")
         except (ValueError, llm.LLMHatasi) as e:
             hatalar.append(f"Yeni kanal oluşturulamadı: {e}")
-    if k not in ("cloudflare", "arama"):  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
+    if k not in ("cloudflare", "arama", "yetki"):  # ana çalıştırmanın ardından gelen yardımcı adım: panel ve bütçe ana işe aittir
         butce.kaydet(ayar, f"{k}-genel" if k in KANAL_KOMUTLARI else k, time.time() - baslangic)
         durum_paneli.yaz(ayar, k, hatalar)
     return 1 if hatalar else 0
