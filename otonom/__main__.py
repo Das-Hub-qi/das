@@ -8,6 +8,7 @@ Komutlar:
   site       Mikro siteleri oluştur                   analiz    Modül 11
   teklifler  Cloudflare'dan teklifleri al             rapor     Aylık gelir raporu
   maliyet    Bugüne kadarki yapay zekâ harcaması
+  muhendis   Öğrenme Mühendisi'ni çalıştırır (normalde haftalık döngünün içinde)
   durum      DURUM.md panelini günceller (neyin kurulu, neyin eksik olduğunu gösterir)
   cloudflare Alan adlarını Pages sitelerine bağlar, KV deposunu kurar
   beta       Tek örnek video + Shorts + site üretir, YouTube'a yüklemez ('beta/' klasörü)
@@ -25,7 +26,7 @@ import tempfile
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="otonom", description="Otonom gelir ve içerik sistemi")
     p.add_argument("komut", choices=["haftalik", "gunluk", "envanter", "nis", "plan", "uret", "alanadi", "site",
-                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare", "durum"])
+                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare", "durum", "muhendis"])
     p.add_argument("--deneme", action="store_true", help="dış servis yok, geçici klasör, sahte veri")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
@@ -84,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
         hatalar = orkestrator.beta(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
+    elif k == "muhendis":
+        m11_analiz.calistir(ayar, tam_rapor=True)
+        orkestrator.muhendis_calistir(ayar)
     elif k == "durum":
         pass  # panel aşağıda her komutta zaten yazılıyor
     butce.kaydet(ayar, k, time.time() - baslangic)

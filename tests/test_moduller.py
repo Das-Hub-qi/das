@@ -226,3 +226,37 @@ def test_optimizasyon_algoritmalari():
                {"konu": "uyku ve hafıza ilişkisi"}]
     kalan = [a["konu"] for a in o.cesitlendir(adaylar, ["Odaklanma Nasıl Artırılır? 4 Alışkanlık"])]
     assert kalan == ["uyku ve hafıza ilişkisi"]
+
+
+def test_ogrenme_muhendisi_deneyleri_evrimlestirir_ve_kendini_onarir():
+    from datetime import timedelta
+
+    from otonom import muhendis
+    from otonom.ayarlar import OGRENILEN, VERI, json_yaz, yukle
+
+    ayar = yukle(deneme=True)
+    bugun = ayar.simdi.date()
+    t = (bugun - timedelta(days=10)).isoformat()
+    gozlem = {"nis": [["noro", 0.6, t, f"v{i}"] for i in range(12)],
+              "hedef_kelime": [["1400", 0.85, t, f"v{i}"] for i in range(8)]
+                              + [["800", 0.3, t, "x"], ["1100", 0.4, t, "y"]],
+              "baslik_stili": [["nasil", 0.05, t, f"n{i}"] for i in range(6)]
+                              + [["soru", 0.7, t, f"s{i}"] for i in range(6)]}
+    json_yaz(VERI / "optimizasyon.json", {"gozlemler": gozlem})
+    zaman = ayar.simdi.strftime("%Y-%m-%d %H:%M")
+    json_yaz(VERI / "uyarilar.json", [{"zaman": zaman, "kategori": "senaryo", "metin": f"x{i} iki denemede de tamamlayamadı"}
+                                      for i in range(2)])
+    try:
+        degisiklik = muhendis.calistir(ayar)
+        assert any("1700" in d for d in degisiklik)                 # en uzun kazanıyor -> daha uzunu dene
+        assert any("'nasil' emekliye" in d for d in degisiklik)     # açıkça kaybeden stil budandı
+        assert any("bağlamı" in d for d in degisiklik)              # yarım kalan metinler -> bağlam artırıldı
+        yeni = yukle(deneme=True)                                   # öğrenilen katman ayarlara uygulanır
+        assert 1700 in yeni["optimizasyon"]["deneyler"]["hedef_kelime"]
+        assert "nasil" not in yeni["optimizasyon"]["deneyler"]["baslik_stili"]
+        assert "hata_uyarisi" in yeni["optimizasyon"]["deneyler"]["baslik_stili"]  # yerine yeni stil
+        assert yeni["llm"]["yerel_baglam"] > ayar["llm"]["yerel_baglam"]
+        assert (VERI / "muhendis_gunlugu.md").exists()
+    finally:
+        for f in (OGRENILEN, VERI / "optimizasyon.json", VERI / "uyarilar.json", VERI / "muhendis_son.json"):
+            f.unlink(missing_ok=True)

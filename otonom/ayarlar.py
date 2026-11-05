@@ -98,7 +98,9 @@ VARSAYILAN: dict[str, Any] = {
                                   "yayin_saati": ["12:00", "18:00", "20:30"]}},
     "cloudflare": {"web_analytics_token": "", "adsense_yayinci_id": ""},
     "teklifler": {"otomatik_yanit": False},
+    "muhendis": {"otomatik_uygula": True, "ders_cikar": True, "github_issue": True, "kilitli": []},
 }
+OGRENILEN = VERI / "ogrenilen_ayarlar.yaml"   # Öğrenme Mühendisi'nin yönettiği katman (silinirse sıfırlanır)
 SECENEKLER = {
     ("llm", "saglayici"): {"otomatik", "yerel", "claude"},
     ("youtube", "gizlilik"): {"private", "zamanla"},
@@ -131,9 +133,28 @@ def _yaml_oku(dosya: Path) -> dict:
     return veri
 
 
+def _kilitlileri_cikar(ogrenilen: dict, kilitli: list[str]) -> dict:
+    for yol in kilitli or []:
+        parcalar, hedef = yol.split("."), ogrenilen
+        for p in parcalar[:-1]:
+            hedef = hedef.get(p, {}) if isinstance(hedef, dict) else {}
+        if isinstance(hedef, dict):
+            hedef.pop(parcalar[-1], None)
+    return ogrenilen
+
+
 def yukle(deneme: bool = False) -> Ayarlar:
     genel = _birlestir(VARSAYILAN, _yaml_oku(CONFIG / "ayarlar.yaml"))
     varliklar = _yaml_oku(CONFIG / "varliklar.yaml")
+    # Öğrenme Mühendisi katmanı: kullanıcının dosyasına dokunmadan, üzerine uygulanır.
+    ogrenilen = _yaml_oku(OGRENILEN) if OGRENILEN.exists() else {}
+    if genel["muhendis"]["otomatik_uygula"] and ogrenilen:
+        ogrenilen = _kilitlileri_cikar(ogrenilen, genel["muhendis"]["kilitli"])
+        ek_tohum = ogrenilen.pop("nis_tohumlari", {}) or {}
+        genel = _birlestir(genel, ogrenilen)
+        for n in varliklar.get("nisler") or []:
+            if isinstance(n, dict) and ek_tohum.get(n.get("kod")):
+                n["tohum_kelimeler"] = list(dict.fromkeys((n.get("tohum_kelimeler") or []) + ek_tohum[n["kod"]]))
     for (bolum, anahtar), gecerli in SECENEKLER.items():
         if genel[bolum][anahtar] not in gecerli:
             raise AyarHatasi(f"\n❌ ayarlar.yaml > {bolum}.{anahtar} = '{genel[bolum][anahtar]}' geçersiz. "

@@ -115,6 +115,21 @@ def olustur(ayar: Ayarlar, komut: str, hatalar: list[str]) -> str:
     else:
         md.append("- Henüz yeterli veri yok (videolar yayınlanıp en az 7 gün geçince öğrenme başlar).")
 
+    son = json_oku(VERI / "muhendis_son.json", {})
+    dersler = json_oku(VERI / "ogrenilen_dersler.json", {}).get("dersler", [])
+    md += ["", "## Öğrenme Mühendisi",
+           "Her hafta sistemi kendi verisiyle geliştirir; tüm değişiklikler `veri/muhendis_gunlugu.md`'de. "
+           "Sıfırlamak için `veri/ogrenilen_ayarlar.yaml` dosyasını silin."]
+    if son:
+        md.append(f"- Son çalışma: {son.get('tarih')}")
+        md += [f"  - 🔧 {d}" for d in son.get("degisiklik", [])[:6]] or ["  - Değişiklik gerekmedi."]
+        md += [f"  - ⚠️ {x}" for x in son.get("sorunlar", [])[:4]]
+    else:
+        md.append("- Henüz çalışmadı (ilk haftalık döngüde başlar).")
+    if dersler:
+        md.append("- Senaryo yazarına verilen dersler:")
+        md += [f"  - {d}" for d in dersler]
+
     uyarilar = json_oku(VERI / "uyarilar.json", [])[-8:]
     if hatalar or uyarilar:
         md += ["", "## Son uyarılar"]

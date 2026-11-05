@@ -56,8 +56,16 @@ M11 Laboratuvar: metrikleri kanal içi yüzdelik sıraya çevir; puan = 0,4×ya�
 M12 Gelir: teklifleri KV'den al, yanıt taslağı hazırla (otomatik gönderim isteğe bağlı), link tıklamalarını say,
    aylık gelir raporu (reklam, ortaklık, teklifler, yapay zekâ maliyeti).
 
+M13 ÖĞRENME MÜHENDİSİ (haftalık, M11'den sonra, M2'den önce): sistemi kendi verisiyle geliştir.
+   - Deney evrimi: en iyi olma olasılığı <%5 ve ≥4 etkin gözlemli kolu emekliye ayır (kategorikse havuzdan
+     yenisini koy); kazanan ≥%60 ve ≥6 gözlemse çevresinde yeni kol aç (en fazla 5 kol, güvenli aralıklar).
+   - Yarı ömrü performans kaymasına göre uyarlа (21-120 gün). Başarılı konulardan yeni arama tohumu ekle.
+   - Tekrarlayan uyarılardan ayar onar; çözülemeyeni ve yeni model adaylarını GitHub issue yap.
+   - En iyi/en zayıf 3 videodan ≤5 ders çıkar, senaryo talimatına ekle (politika kuralları önceliklidir).
+   - Kullanıcının config dosyalarına dokunma: veri/ogrenilen_ayarlar.yaml katmanı + gerekçeli günlük.
+
 ## 6. DÖNGÜLER
-- Haftalık (Pzt 09:00): M1 → M11 → M2 → M3 → M4(toplu gönder) → M10 → siteler → aylık rapor.
+- Haftalık (Pzt 09:00): M1 → M11 → M13 → M2 → M3 → M4 → M10 → siteler → aylık rapor.
 - Pzt 13:00 ve her gün 07:00: toplu sonucu al → M5-M9 → viral kontrol → teklifler/tıklamalar → siteler.
 - Bir adımın hatası diğerlerini durdurmaz; sonunda iş başarısız işaretlenir (GitHub e-posta bildirimi).
 

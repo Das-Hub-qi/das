@@ -214,6 +214,20 @@ def _adimlar(adimlar: list[tuple[str, Callable[[], object]]]) -> list[str]:
     return hatalar
 
 
+def muhendis_calistir(ayar: Ayarlar) -> list[str]:
+    """Mühendisi çalıştırır ve öğrendiği ayarları bu haftanın planına hemen uygular."""
+    from . import muhendis
+    from .ayarlar import yukle
+
+    degisiklik = muhendis.calistir(ayar)
+    korunan = {k: ayar.genel["youtube"][k] for k in ("haftalik_uzun_video", "video_basina_shorts")}
+    yeni = yukle(ayar.deneme)
+    ayar.genel, ayar.varliklar = yeni.genel, yeni.varliklar
+    if ayar.mod != "normal":  # bütçe kısıtı bu çalıştırmada geçerli kalsın
+        ayar.genel["youtube"].update(korunan)
+    return degisiklik
+
+
 def haftalik(ayar: Ayarlar) -> list[str]:
     plan: list[dict] = []
 
@@ -229,6 +243,7 @@ def haftalik(ayar: Ayarlar) -> list[str]:
     adimlar = [
         ("Modül 1 — Envanter", lambda: m01_envanter.calistir(ayar)),
         ("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True)),
+        ("Öğrenme Mühendisi — sistemi geliştir", lambda: muhendis_calistir(ayar)),
         ("Modül 2 — Niş analizi", lambda: m02_nis_analizi.calistir(ayar)),
         ("Modül 3 — İçerik planı", planla),
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),

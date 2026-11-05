@@ -14,10 +14,11 @@ on:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, beta, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, beta, muhendis, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
 
 permissions:
   contents: write          # veri/ klasöründeki sonuçları depoya kaydetmek için
+  issues: write            # Öğrenme Mühendisi'nin sorun/öneri kayıtları için
 
 concurrency:
   group: otonom            # iki çalıştırma aynı anda olmasın
@@ -29,6 +30,7 @@ jobs:
     timeout-minutes: 240         # yerel model işlemcide çalıştığı için haftalık iş uzun sürebilir
     env:
       REPO_OZEL: ${{ github.event.repository.private }}   # herkese açık depoda dakika sınırı yok
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}           # GitHub'ın otomatik verdiği anahtar (kurulum gerekmez)
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -85,7 +87,7 @@ jobs:
 
       # Claude seçili olsa bile kurulur: kredi/kota biterse sistem yerel modelle devam eder (yedek).
       - name: Yerel model çalıştırıcısını kur (llama.cpp)
-        if: contains('haftalik beta plan alanadi gunluk uret', steps.komut.outputs.ad)
+        if: contains('haftalik beta plan alanadi gunluk uret muhendis', steps.komut.outputs.ad)
         env:
           # Tüm GitHub sunucularında çalışan taşınabilir derleme (önbellekteki paket farklı işlemcide de çalışsın)
           CMAKE_ARGS: "-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"

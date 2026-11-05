@@ -105,7 +105,9 @@ her sahne 4-6 cümle (yaklaşık 75 kelime). Kısa kesme; her bölümde örnek v
 gorsel_arama alanlarını İNGİLİZCE 2-4 kelime yaz (ör. "student studying desk").
 Site adresini seslendirme metninde yazma; "açıklamadaki link" de.
 {ayar['youtube']['video_basina_shorts']} adet Shorts metni yaz."""
-    return {"id": v["kod"], "sistem": SISTEM, "istem": istem, "sema": SENARYO_SEMASI,
+    from .muhendis import dersler_metni  # Öğrenme Mühendisi'nin kanaldan çıkardığı kurallar
+
+    return {"id": v["kod"], "sistem": SISTEM + dersler_metni(), "istem": istem, "sema": SENARYO_SEMASI,
             "efor": ayar["llm"]["senaryo_efor"], "max_tokens": 16000}
 
 

@@ -76,6 +76,14 @@ optimizasyon:
     hedef_kelime: [800, 1100, 1400]          # video uzunluğu (~5, ~7, ~9 dk)
     yayin_saati: ["12:00", "18:00", "20:30"] # yalnızca gizlilik "zamanla" iken denenir
 
+# --- Öğrenme Mühendisi (sistemi her hafta kendi verisiyle geliştirir) ---------
+# Öğrendiği ayarları veri/ogrenilen_ayarlar.yaml'a yazar (bu dosyaya dokunmaz). Silerseniz sıfırlanır.
+muhendis:
+  otomatik_uygula: true      # false = yalnızca önerir, ayarları değiştirmez
+  ders_cikar: true           # en iyi/en kötü videolardan senaryo yazarına kural çıkarır
+  github_issue: true         # çözemediği sorunları ve yeni model adaylarını GitHub'da iş kaydı yapar
+  kilitli: []                # dokunmasını istemediğiniz ayarlar, ör. ["youtube.video_basina_shorts"]
+
 # --- Cloudflare (ücretsiz siteler, teklif formu, link takibi) --------------
 cloudflare:
   web_analytics_token: ""    # Cloudflare > Web Analytics'ten alınan token (isteğe bağlı)

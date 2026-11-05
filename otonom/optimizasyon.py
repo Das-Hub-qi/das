@@ -128,6 +128,10 @@ BASLIK_STILLERI = {
     "sayili_liste": "Başlıkta bir sayı olsun (ör. '5 Basit Yöntem').",
     "nasil": "Başlık 'Nasıl' ile başlayan bir rehber olsun.",
     "carpici_gercek": "Başlık şaşırtıcı ama doğru bir gerçeği vurgulasın (abartısız).",
+    # Öğrenme Mühendisi, başarısız stilleri emekliye ayırınca bu havuzdan yenilerini dener:
+    "hata_uyarisi": "Başlık yaygın bir hatayı uyarsın (ör. '... Yaparken Bu Hatayı Yapma').",
+    "karsilastirma": "Başlık iki seçeneği karşılaştırsın (ör. 'X mi, Y mi?').",
+    "hizli_sonuc": "Başlık kısa sürede elde edilecek somut bir sonuç vaat etsin (abartısız, ör. '10 Dakikada ...').",
 }
 
 
@@ -141,18 +145,18 @@ def deney_secimleri(deneyler: dict[str, list], istatistik: dict, rng: random.Ran
 
 
 def gozlemleri_topla(olgun_videolar: list[dict], icerik_oku) -> dict[str, list]:
-    """Değerlendirilmiş videolardan deney gözlemleri: {deney: [[kol, skor/100, yayın_tarihi]]} (JSON'a uygun)."""
+    """Değerlendirilmiş videolardan deney gözlemleri: {deney: [[kol, skor/100, yayın_tarihi, video_id]]}."""
     sonuc: dict[str, list] = defaultdict(list)
     for v in olgun_videolar:
         if v.get("tur") != "uzun" or "skor" not in v:
             continue
-        tarih, basari = v["tarih"][:10], round(v["skor"] / 100, 4)
-        sonuc["nis"].append([v["nis"], basari, tarih])
+        tarih, basari, vid = v["tarih"][:10], round(v["skor"] / 100, 4), v.get("youtube_id", "")
+        sonuc["nis"].append([v["nis"], basari, tarih, vid])
         for ad, kol in ((icerik_oku(v["kod"]) or {}).get("plan", {}).get("deney") or {}).items():
-            sonuc[ad].append([str(kol), basari, tarih])
+            sonuc[ad].append([str(kol), basari, tarih, vid])
     return dict(sonuc)
 
 
 def yasli(gozlemler: list, bugun: date) -> list[tuple[str, float, float]]:
     """Kaydedilmiş gözlemleri bugünkü yaşlarıyla Thompson girdisine çevirir (aşınma her gün güncel)."""
-    return [(str(k), float(b), (bugun - datetime.fromisoformat(t).date()).days) for k, b, t in gozlemler]
+    return [(str(g[0]), float(g[1]), (bugun - datetime.fromisoformat(g[2]).date()).days) for g in gozlemler]

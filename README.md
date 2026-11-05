@@ -63,6 +63,26 @@ en iyi nişin üretim payı %33 → %67, en iyi başlık stilinin payı %17 → 
 Öğrenilenler her çalıştırmada **DURUM.md > Laboratuvar öğrenimi** bölümünde görünür.
 Denenecek seçenekler `config/ayarlar.yaml > optimizasyon` bölümünden değiştirilebilir.
 
+## 👷 Öğrenme Mühendisi — sistemi kendi kendine geliştiren bileşen
+
+Laboratuvar ölçer, **Öğrenme Mühendisi sistemin kendisini değiştirir.** Her pazartesi, planlamadan hemen önce çalışır:
+
+| Görev | Örnek karar |
+|---|---|
+| **Deney evrimi** | "1400 kelimelik videolar %73 olasılıkla en iyi → 1700 kelimeyi de dene" · "'nasıl' başlıkları açıkça kaybediyor → emekliye ayır, yerine 'hata uyarısı' stilini dene" |
+| **Uyum hızı** | Son 4 haftada performans 15 puandan fazla kaydıysa eski verinin etkisini hızlandırır (yarı ömrü kısaltır); kararlıysa uzatır |
+| **Pazar keşfi** | En başarılı %20'lik videoların anahtar kelimelerini yeni arama tohumu yapar → yeni konu alanları keşfedilir |
+| **Kendini onarma** | Metinler sık yarım kalıyorsa model belleğini artırır; YouTube kotası sık doluyorsa Shorts sayısını azaltır |
+| **Ders çıkarma** | En iyi 3 ve en zayıf 3 videoyu yapay zekâyla karşılaştırır; en fazla 5 kuralı senaryo yazarının talimatına ekler |
+| **Gözcülük** | Ayarla çözülemeyen sorunları ve ayda bir yeni çıkan küçük yerel modelleri **GitHub issue** olarak açar |
+| **Güncel kalma** | Dependabot paket ve iş akışı güncellemeleri için haftalık değişiklik isteği açar; testler otomatik çalışır |
+
+**Güvenlik:** Mühendis yalnızca sınırlı aralıklarda değişiklik yapar (ör. video uzunluğu 500-2000 kelime),
+senin `config/` dosyalarına dokunmaz, öğrendiklerini `veri/ogrenilen_ayarlar.yaml` katmanına yazar ve her kararı
+gerekçesiyle `veri/muhendis_gunlugu.md`'ye kaydeder. Bu dosyayı silersen sistem fabrika ayarlarına döner;
+bir ayarı korumak için `config/ayarlar.yaml > muhendis > kilitli` listesine ekle; sadece öneri istersen
+`otomatik_uygula: false` yap. Kod değiştirmez; kod gerektiren sorunları issue olarak sana bırakır.
+
 ## 🛡️ Sınıra takılınca ne olur? — Sistem durmaz
 
 | Sınır / sorun | Sistem ne yapar? |
@@ -79,6 +99,7 @@ Denenecek seçenekler `config/ayarlar.yaml > optimizasyon` bölümünden değiş
 | Cloudflare günlük yazma sınırı | Tıklama sayımı atlanır, linkler çalışmaya devam eder |
 | Ayar dosyasında yazım hatası | Satır numarasıyla Türkçe hata; eksik ayarlar varsayılanla tamamlanır |
 | Herhangi bir adım hata verir | Diğer adımlar sürer, iş biter, GitHub size e-posta atar, DURUM.md'de görünür |
+| Aynı sorun tekrar eder | Öğrenme Mühendisi ayarla düzeltir; düzeltemezse GitHub issue açar |
 
 Her yedeğe geçiş `veri/uyarilar.json` dosyasına ve DURUM.md'nin "Son uyarılar" bölümüne yazılır.
 
@@ -160,7 +181,7 @@ Bir adım hata verirse GitHub size **ücretsiz e-posta** gönderir.
 
 | Ne zaman (TR saati) | Ne olur |
 |---|---|
-| Pazartesi 09:17 | Laboratuvar raporu → niş analizi → haftalık plan → senaryolar (toplu, %50 ucuz) → alan adı metinleri → siteler |
+| Pazartesi 09:17 | Laboratuvar raporu → Öğrenme Mühendisi → niş analizi → haftalık plan → senaryolar (toplu, %50 ucuz) → alan adı metinleri → siteler |
 | Pazartesi 13:37 | Hazır senaryolardan 3 uzun video + 6 Shorts üretilir ve yüklenir |
 | Her gün 07:07 | Kalan yüklemeler (kota), viral video kontrolü, yeni teklifler, link tıklamaları, site güncellemesi |
 | Salı/Perşembe/Cumartesi 18:00 | Uzun videolar yayına girer (`gizlilik: "zamanla"` iken) |
@@ -182,6 +203,9 @@ Bir adım hata verirse GitHub size **ücretsiz e-posta** gönderir.
 | `otonom/m01_envanter.py` … `m12_gelir.py` | Master prompttaki 12 modül |
 | `otonom/mikro_site.py` | Cloudflare Pages siteleri |
 | `otonom/orkestrator.py` | Haftalık / günlük döngü |
+| `otonom/optimizasyon.py` | Thompson örneklemesi, yaşa göre puan, trend, çeşitlilik |
+| `otonom/muhendis.py` | Öğrenme Mühendisi (sistemi kendi verisiyle geliştirir) |
+| `otonom/yerel_llm.py`, `butce.py`, `durum_paneli.py` | Ücretsiz yerel model, sınır bütçesi, DURUM.md |
 | `cloudflare/functions/` | Teklif formu ve kısa link fonksiyonları |
 | `veri/` | Sistemin hafızası: planlar, senaryolar, metrikler, raporlar, teklifler |
 | `MASTER_PROMPT.md` | Sistemin güncellenmiş ana talimatı (başka yapay zekâ ajanlarına da verilebilir) |
@@ -211,7 +235,7 @@ python -m otonom haftalik --deneme       # hiçbir servise bağlanmadan uçtan u
 python -m pytest -q                      # testler
 ```
 Gerçek çalıştırma için `.env.example` dosyasını `.env` adıyla kopyalayıp doldurun.
-Komutlar: `beta, haftalik, gunluk, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
+Komutlar: `beta, haftalik, gunluk, muhendis, durum, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor, maliyet`
 
 ---
 
