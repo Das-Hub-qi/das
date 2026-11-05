@@ -116,6 +116,23 @@ ekleyeceğini gösterir). Böylece öğrenme motoru bu videolardan da öğrenir.
 
 ---
 
+## 📱 Telefondan yönetim (Hibrit AI ile birlikte)
+
+Termux'a `otonom` komutunu kur: `bash araclar/telefon/kur.sh`. Telefonda Hibrit AI kuruluysa onunla yan yana
+çalışır ve Hibrit'in NVIDIA/OpenRouter/Anthropic anahtarlarını buluta aktarmayı önerir.
+
+| Komut | Ne yapar |
+|---|---|
+| `otonom durum` | Panel özeti (DURUM.md) |
+| `otonom video [kanal]` | Hemen yeni video + Shorts üret |
+| `otonom gunluk` / `haftalik` / `beta` | İş akışını şimdi çalıştır |
+| `otonom yeni-kanal "açıklama"` | Yeni kanal aç (onay konusu kendiliğinden gelir) |
+| `otonom onay [kanal\|google]` | Tek tıkla yetki: Google onay sayfası telefonda kendiliğinden açılır |
+| `otonom bildirim` / `otonom zamanla` | Bekleyen onaylar telefon bildirimi olur (3 saatte bir kontrol) |
+| `otonom anahtar-aktar` | Hibrit AI anahtarlarını bulut sistemine aktar |
+
+---
+
 ## 🔑 Kurulum ayrıntıları (hepsi isteğe bağlı, hepsi ücretsiz)
 
 Anahtarları **GitHub > Settings > Secrets and variables > Actions > New repository secret** bölümüne,
@@ -128,7 +145,10 @@ indirilir). Sistem şu sırayla dener, biri kullanılamazsa (kredi, kota, ağ) s
 1. **Claude Haiku 5.5** (en kaliteli): https://console.anthropic.com → **Billing**'den 5 $ → **API Keys** → `ANTHROPIC_API_KEY`
 2. **Cloudflare Workers AI** (ücretsiz günlük kota, Llama 3.3 70B; logosuz yapay zekâ görseli de üretir):
    Cloudflare token'ına (adım D) *Account – Workers AI – Read* ve *Edit* izinlerini eklemen yeterli.
-3. **Yerel Gemma 4 E2B** (her zaman var, tamamen ücretsiz).
+3. **NVIDIA** (`NVIDIA_API_KEY`, build.nvidia.com) ve **OpenRouter** (`OPENROUTER_API_KEY`, ücretsiz modeller):
+   Hibrit AI'da zaten varsa telefondan `otonom anahtar-aktar` ile tek komutta aktarılır.
+4. **Evdeki PC (Jormungand)**: PC'yi Cloudflare Tunnel ile dışarı açarsan `JORMUNGAND_URL` + `JORMUNGAND_TOKEN`.
+5. **Yerel Gemma 4 E2B** (her zaman var, tamamen ücretsiz).
 
 Görseller için ayrıca anahtarsız **Pollinations** yapay zekâ görseli son yedektir (köşesinde küçük logo olur).
 

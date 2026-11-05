@@ -17,6 +17,10 @@ saat_dilimi: "Europe/Istanbul"
 llm:
   saglayici: "otomatik"
   cloudflare_metin_modeli: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"   # boş = Cloudflare metin kullanılmaz
+  # Ücretsiz kotalı ek sağlayıcılar (Hibrit AI ile aynı anahtarlar; anahtar yoksa atlanır):
+  nvidia_modeli: "meta/llama-3.3-70b-instruct"                # NVIDIA_API_KEY (build.nvidia.com)
+  openrouter_modeli: "meta-llama/llama-3.3-70b-instruct:free"  # OPENROUTER_API_KEY
+  # Evdeki PC (Jormungand): JORMUNGAND_URL (Cloudflare Tunnel adresi) + JORMUNGAND_TOKEN varsa kullanılır.
   cloudflare_gorsel_modeli: "@cf/black-forest-labs/flux-1-schnell"     # boş = Cloudflare görsel kullanılmaz
   # Yerel model: Google Gemma 4 (Mart 2026). Testlerde Türkçesi en akıcı ve en hızlı küçük model.
   yerel_model: "unsloth/gemma-4-E2B-it-GGUF"

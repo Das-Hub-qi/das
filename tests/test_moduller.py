@@ -535,3 +535,14 @@ def test_montaj_v2_hareket_tonlama_ve_ses_tasarimi(tmp_path: Path):
     assert m05_seslendirme.sure(fon) > 2.9 and m05_seslendirme.sure(efekt) > 2.9
     assert "sidechaincompress" in ses_tasarimi.karisim_suzgeci(-16, -16, True, True)
     assert "sidechaincompress" not in ses_tasarimi.karisim_suzgeci(-16, -16, False, True)
+
+
+def test_ek_saglayicilar_zincirde_ve_json_ayiklama(monkeypatch):
+    from otonom import llm
+    from otonom.ayarlar import yukle
+    a = yukle(deneme=True)
+    monkeypatch.setenv("NVIDIA_API_KEY", "x")
+    zincir = llm.saglayici_zinciri(a)
+    assert "nvidia" in zincir and "openrouter" not in zincir and zincir[-1] == "yerel"
+    assert llm._json_ayikla('```json\n{"a": 1}\n```') == {"a": 1}
+    assert llm._json_ayikla('Tabii: {"b": [1, 2]} umarım işine yarar') == {"b": [1, 2]}

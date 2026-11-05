@@ -40,16 +40,29 @@ def _var_mi(ad: str) -> bool:
         return bool(gizli("ANTHROPIC_API_KEY") or gizli("ANTHROPIC_AUTH_TOKEN"))
     if ad == "cloudflare":
         return bool(gizli("CLOUDFLARE_API_TOKEN") and gizli("CLOUDFLARE_ACCOUNT_ID"))
+    if ad in UYUMLU:
+        return bool(gizli(UYUMLU[ad][1]))
+    if ad == "pc":
+        return bool(gizli("JORMUNGAND_URL") and gizli("JORMUNGAND_TOKEN"))
     return True
+
+
+# OpenAI uyumlu ücretsiz sağlayıcılar (Hibrit AI ile aynı anahtarlar): adres, gizli adı, model ayarı
+UYUMLU = {
+    "nvidia": ("https://integrate.api.nvidia.com/v1/chat/completions", "NVIDIA_API_KEY", "nvidia_modeli"),
+    "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "openrouter_modeli"),
+}
 
 
 def saglayici_zinciri(ayar: Ayarlar) -> list[str]:
     """Denenecek yapay zekâ sağlayıcıları, sırayla. Biri kullanılamazsa (kredi, kota, ağ) sıradaki denenir.
-    otomatik  : Claude (anahtar varsa) -> Cloudflare Workers AI (ücretsiz günlük kota) -> yerel model
-    claude    : Claude -> Cloudflare -> yerel     cloudflare: Cloudflare -> yerel     yerel: yalnızca yerel"""
+    otomatik  : Claude (anahtar varsa) -> Cloudflare Workers AI -> NVIDIA -> OpenRouter -> PC (Jormungand)
+                -> yerel model. Anahtarı olmayan atlanır; hepsi ücretsiz kotalıdır (Claude hariç).
+    claude    : Claude -> diğerleri     cloudflare: Cloudflare -> diğerleri     yerel: yalnızca yerel"""
     secim = ayar["llm"].get("saglayici", "otomatik")
-    sira = {"otomatik": ["claude", "cloudflare", "yerel"], "claude": ["claude", "cloudflare", "yerel"],
-            "cloudflare": ["cloudflare", "yerel"], "yerel": ["yerel"]}.get(secim, ["yerel"])
+    ucretsiz = ["cloudflare", "nvidia", "openrouter", "pc", "yerel"]
+    sira = {"otomatik": ["claude", *ucretsiz], "claude": ["claude", *ucretsiz],
+            "cloudflare": ucretsiz, "yerel": ["yerel"]}.get(secim, ["yerel"])
     if not ayar["llm"].get("cloudflare_metin_modeli"):
         sira = [x for x in sira if x != "cloudflare"]
     zincir = [x for x in sira if _var_mi(x)]
@@ -206,6 +219,49 @@ def _cloudflare_json(ayar: Ayarlar, gorev: str, sistem: str, istem: str, sema: d
         raise LLMHatasi(f"[{gorev}] Cloudflare geçersiz JSON döndürdü: {e}") from e
 
 
+def _json_ayikla(metin: str) -> dict:
+    metin = (metin or "").strip()
+    if metin.startswith("```"):
+        metin = metin.split("\n", 1)[-1].rsplit("```", 1)[0]
+    bas, son = metin.find("{"), metin.rfind("}")
+    return json.loads(metin[bas:son + 1] if bas >= 0 else metin)
+
+
+def _uyumlu_json(ayar: Ayarlar, ad: str, gorev: str, sistem: str, istem: str, sema: dict, max_tokens: int) -> dict:
+    """NVIDIA / OpenRouter (OpenAI uyumlu, ücretsiz kotalı) ya da evdeki PC (Jormungand, tünelle)."""
+    import requests
+
+    talimat = (sistem + "\n\nYalnızca şu JSON şemasına uyan geçerli bir JSON nesnesi döndür, başka hiçbir şey yazma:\n"
+               + json.dumps(sema.get("schema", sema), ensure_ascii=False))
+    try:
+        if ad == "pc":
+            r = requests.post(gizli("JORMUNGAND_URL").rstrip("/") + "/chat", timeout=300,
+                              headers={"X-Jor-Token": gizli("JORMUNGAND_TOKEN")},
+                              json={"prompt": talimat + "\n\n" + istem})
+            metin, model = r.json().get("response", ""), "pc:jormungand"
+        else:
+            url, anahtar, model_ayari = UYUMLU[ad]
+            model = ayar["llm"][model_ayari]
+            r = requests.post(url, timeout=300, headers={"Authorization": f"Bearer {gizli(anahtar)}"},
+                              json={"model": model, "max_tokens": min(max_tokens, 8000), "temperature": 0.6,
+                                    "messages": [{"role": "system", "content": talimat},
+                                                 {"role": "user", "content": istem}],
+                                    "response_format": {"type": "json_object"}})
+            veri = r.json()
+            if not r.ok or "choices" not in veri:
+                raise LLMHatasi(f"[{gorev}] {ad} hatası (kota dolmuş olabilir): {str(veri)[:200]}")
+            metin, model = veri["choices"][0]["message"]["content"], f"{ad}:{model}"
+        sonuc = _json_ayikla(metin)
+    except LLMHatasi:
+        raise
+    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as e:
+        raise LLMHatasi(f"[{gorev}] {ad} kullanılamadı: {e}") from e
+    csv_ekle(MALIYET_DOSYASI, [{"gorev": gorev, "model": model, "toplu": 0, "girdi_token": 0, "cikti_token": 0,
+                                "onbellek_okunan": 0, "dolar": "0"}],
+             ["gorev", "model", "toplu", "girdi_token", "cikti_token", "onbellek_okunan", "dolar"])
+    return sonuc
+
+
 def json_uret(
     ayar: Ayarlar,
     gorev: str,
@@ -235,6 +291,8 @@ def json_uret(
                 return _claude_json(ayar, gorev, sistem, istem, sema, efor, max_tokens)
             if ad == "cloudflare":
                 return _cloudflare_json(ayar, gorev, sistem, istem, sema, max_tokens)
+            if ad in UYUMLU or ad == "pc":
+                return _uyumlu_json(ayar, ad, gorev, sistem, istem, sema, max_tokens)
             return _yerel_json(ayar, gorev, sistem, istem, sema, max_tokens)
         except LLMHatasi as e:
             son_hata = e
