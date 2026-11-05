@@ -1,11 +1,12 @@
 # 📊 Sistem Durumu
 
-_Son çalıştırma: 2026-11-05 12:50 · komut: `durum` · ✅ Sorunsuz_
+_Son çalıştırma: 2026-11-05 13:23 · komut: `gunluk` · ✅ Sorunsuz_
 
 ## ⚡ Hızlı erişim
 
 - 🧭 **Kontrol Merkezi** (tüm sistem tek sayfada): [aç](https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf)
 - ▶️ **Çalıştır** (beta / haftalık / günlük): [Actions > Otonom sistem > Run workflow](https://github.com/Das-Hub-qi/das/actions/workflows/otonom.yml)
+- 📥 **Bu çalıştırmanın videoları ve günlüğü**: [aç](https://github.com/Das-Hub-qi/das/actions/runs/42009695515) (en altta Artifacts)
 - 🔑 **Anahtarlar**: [Settings > Secrets](https://github.com/Das-Hub-qi/das/settings/secrets/actions)
 - 🛠️ **Mühendisin açtığı iş kayıtları**: [Issues](https://github.com/Das-Hub-qi/das/issues)
 - ⚙️ **Ayarlar**: [ayarlar.yaml](config/ayarlar.yaml) · [varliklar.yaml](config/varliklar.yaml) (dosyayı açıp kalem simgesine dokunun)
@@ -32,7 +33,7 @@ _Son çalıştırma: 2026-11-05 12:50 · komut: `durum` · ✅ Sorunsuz_
 | ⚠️ | Arka plan müziği | 0 parça | YouTube Ses Kitaplığı'ndan mp3 → `config/muzik/` |
 
 ## Ücretsiz sınırlar
-- GitHub dakikası (bu ay): **0** / 2000 · ay sonu tahmini 0 · mod: **normal**
+- GitHub dakikası (bu ay): **3** / sınırsız · mod: **normal**
 - YouTube API kotası (bugün): **0** / 10000
 - Yapay zekâ harcaması (toplam): **0.000 $**
 - Sınır dolarsa sistem durmaz: üretimi azaltır, yüklemeyi ertesi güne bırakır veya yedek servise geçer.
