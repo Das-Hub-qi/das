@@ -138,7 +138,7 @@ def _yapay_zeka_gorseli(ayar: Ayarlar, sorgu: str, dikey: bool, hedef: Path) -> 
         except (requests.RequestException, ValueError) as e:
             log.warning("Cloudflare görsel hatası: %s", e)
     if "pollinations" not in _YZ_KAPALI:
-        g, y = (720, 1280) if dikey else (1280, 720)
+        g, y = (1088, 1920) if dikey else (1920, 1088)  # yüksek çözünürlük: 2.5D yakın planlarda net kalsın
         try:
             r = requests.get("https://image.pollinations.ai/prompt/" + requests.utils.quote(istem), headers=BASLIK,
                              timeout=120, params={"width": g, "height": y, "nologo": "true", "model": "flux",
@@ -167,7 +167,9 @@ def gorsel_bul(ayar: Ayarlar, sorgu: str, hedef: Path, kullanilan: set[str], nis
     """Videoda daha önce kullanılmamış bir görsel bulur ve `hedef`e yazar.
     Sıra kanal dosyasındaki 'gorsel_kaynaklari' ile değiştirilebilir (ör. tarih kanalı için yapay zekâ önce)."""
     if not ayar.deneme:
-        sira = ayar.kanal_bilgi.get("gorsel_kaynaklari") or ["pexels", "pixabay", "openverse", "yapay_zeka"]
+        sira = ayar.kanal_bilgi.get("gorsel_kaynaklari") or (
+            ["pexels", "pixabay", "openverse", "yapay_zeka"] if gizli("PEXELS_API_KEY") or gizli("PIXABAY_API_KEY")
+            else ["yapay_zeka", "openverse"])  # anahtarsız: yapay zekâ görseli konuya daha uygun
         for ad in sira:
             if ad == "yapay_zeka":
                 bilgi = _yapay_zeka_gorseli(ayar, sorgu, dikey, hedef)

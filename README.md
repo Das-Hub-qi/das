@@ -61,7 +61,16 @@ Pazartesi 13:37 ─ (Claude toplu işi kullanılıyorsa) senaryoları alır ve �
 Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklifler, link tıklamaları, siteler
 ```
 
-**🎬 Video kalitesi (montaj v2, hepsi ücretsiz ve yerel):**
+**🎬 Video kalitesi (montaj v3, hepsi ücretsiz, yerel ve anahtarsız):**
+- **2.5D sinematik hareket:** Her fotoğraf yerel bir derinlik modeliyle (Depth-Anything-V2-Small, Apache-2.0, 27 MB)
+  üç boyutlu canlanır; kamera hareket ettikçe yakındaki nesneler uzaktakilerden farklı kayar. Uzun sahneler sanal
+  kamera kesmeleriyle (geniş → yakın → orta plan) birkaç çekime bölünür.
+- **Otomatik bilgi grafikleri:** Metinde sayı geçince ("yüzde altmış", "86 milyar nöron", "3 kat", "1928 yılında")
+  söylendiği anda ekranda canlı grafik çıkar: dolan yüzde halkası, sayan rakam, tarih damgası.
+- **YouTube'un resmî önerileri senaryoya işlendi:** İlk 2 cümle başlığın sözünü hemen karşılar ve sayılar somut
+  verilir. Merak döngüleri kurulur. Başlıklar teknik terim yerine herkesin yaşadığı sorun üzerinden yazılır.
+  Shorts sonunda "TAMAMI KANALDA" çağrısı çıkar. Yeni kanal ilk 12 videoda tek konuya odaklanır.
+- **Anahtarsız görsel:** Stok anahtarı yoksa önce konuya uygun yapay zekâ görseli (1920 piksel) kullanılır.
 - Her sahnede farklı, yumuşak kamera hareketi (yaklaş, uzaklaş, kaydır, köşeye odaklan, süzül); açılışta hızlı "darbe" yakınlaşması.
 - Sahneler arası geçişler (kayma, çözülme, daire, bulanık...); bölüm başlarında karartmalı geçiş ve kayan bölüm bandı.
 - Söylenen cümle ekranda yumuşakça belirir.

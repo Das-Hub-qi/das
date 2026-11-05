@@ -66,6 +66,21 @@ def _deneyler(ayar: Ayarlar) -> dict[str, list]:
     return {k: v for k, v in d.items() if v}
 
 
+def baslangic_odagi(ayar: Ayarlar, kodlar: list[str], nis_gozlemleri: list) -> list[str]:
+    """Yeni kanalda (ilk N uzun video) tek konuya odaklan: YouTube kanalın kime hitap ettiğini çabuk öğrenir.
+    Seçilen niş: şimdiye kadar en iyi giden; veri yoksa ayar dosyasındaki ilk niş."""
+    esik = int(ayar["youtube"].get("baslangic_odak_video", 12))
+    yayinlanan = sum(1 for r in csv_oku(VERI / "yayinlananlar.csv") if r.get("tur") == "uzun")
+    if len(kodlar) <= 1 or not esik or yayinlanan >= esik:
+        return kodlar
+    puan: dict[str, list[float]] = {}
+    for g in nis_gozlemleri:
+        puan.setdefault(str(g[0]), []).append(float(g[1]))
+    en_iyi = max(kodlar, key=lambda k: (sum(puan.get(k, [])) / len(puan[k]) if puan.get(k) else -1, -kodlar.index(k)))
+    log.info("Başlangıç modu (%d/%d uzun video): tek konuya odak → %s", yayinlanan, esik, en_iyi)
+    return [en_iyi]
+
+
 def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) -> list[dict]:
     yil, hafta, _ = ayar.simdi.isocalendar()
     bugun = ayar.simdi.date()
@@ -77,6 +92,7 @@ def calistir(ayar: Ayarlar, nis_analizi: dict[str, list[dict]] | None = None) ->
     rng = random.Random(yil * 100 + hafta)
 
     kodlar = [n["kod"] for n in ayar.nisler if nis_analizi.get(n["kod"])]
+    kodlar = baslangic_odagi(ayar, kodlar, ogren.get("nis", []))
     oncelik = oncelikli[:adet]
     dagilim = dagit(kodlar, optimizasyon.yasli(ogren.get("nis", []), bugun), adet - len(oncelik), rng, yo)
     if not dagilim and not oncelik:

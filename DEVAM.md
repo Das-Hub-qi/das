@@ -54,7 +54,12 @@
   zıplayan altyazı (Montserrat Black, indirilir), üst başlık kutusu, vuruşlu müzik (`ses_tasarimi.ritim_muzigi`).
   Örnek: "Beynin gece temizliği" (23 sn) kullanıcıya gönderildi. Kendi puanım 7,5/10; 10 için Pexels anahtarı (gerçek video)
   ve gerekirse daha doğal ses gerekli.
-- Testler: 36.
+- **Montaj v3** (kullanıcı: "daha gelişmiş, izleyici odaklı, dışa bağımlı olmasın"): `derinlik.py` (2.5D paralaks,
+  yerel Depth-Anything-V2-Small ONNX + OpenCV, yarım çözünürlük harita; sanal kamera kesmeleri), `grafik.py`
+  (sayı bulucu + canlı yüzde/sayaç/yıl grafikleri), `m07.sahne_klibi` ve Shorts'a bağlandı (hata olursa zoompan'e döner).
+  YouTube resmî kaynaklarından kurallar m04 SISTEM'e (paketleme, ilk 2 cümle, merak döngüsü); `m03.baslangic_odagi`
+  (ilk 12 uzun videoda tek niş); anahtarsız görsel sırası yapay zekâ önce; Shorts sonu "TAMAMI KANALDA".
+- Testler: 39.
 
 ## Sıradaki işler
 1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):

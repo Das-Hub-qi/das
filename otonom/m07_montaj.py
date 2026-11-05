@@ -21,7 +21,7 @@ import random
 import subprocess
 from pathlib import Path
 
-from . import gorsel, ses_tasarimi
+from . import derinlik, gorsel, grafik, ses_tasarimi
 from .ayarlar import CIKTI, CONFIG, Ayarlar, log
 from .m05_seslendirme import gruplar, sure
 
@@ -121,35 +121,72 @@ def _altyazi_suzgecleri(ayar: Ayarlar, kelimeler: list, gecikme: float, son: flo
     return suz
 
 
+def paralaks_acik(ayar: Ayarlar) -> bool:
+    """2.5D derinlikli hareket: ayar açıksa ve yerel model/OpenCV hazırsa (testte kapalı: hız)."""
+    return bool(ayar["video"].get("paralaks", True)) and not ayar.deneme and derinlik.kullanilabilir()
+
+
+def bilgi_grafigi(ayar: Ayarlar, metin: str, kelimeler: list, klasor: Path, ad: str, dikey: bool = False,
+                  gecikme: float = 0.0) -> tuple[Path, float, int] | None:
+    """Metinde gösterilmeye değer sayı varsa grafik kareleri ve başlama anı: (klasör, an, kenar)."""
+    if not ayar["video"].get("bilgi_grafikleri", True):
+        return None
+    bilgi = grafik.sayi_bul(metin)
+    if not bilgi:
+        return None
+    g, y, fps = boyut(ayar, dikey)
+    kenar = int(min(g, y) * (0.56 if dikey else 0.36))
+    an = max(0.0, grafik.kelime_ani(kelimeler, bilgi, metin) + gecikme - 0.15)
+    return grafik.kareler(bilgi, klasor / f"grafik_{ad}", kenar, fps), an, kenar
+
+
 def sahne_klibi(ayar: Ayarlar, resim: Path, saniye: float, cikti: Path, hareket: str = "yaklas",
                 guc: float = 1.0, kelimeler: list | None = None, bant: Path | None = None,
-                gecikme: float = 0.0, karar_gir: float = 0.0, karar_cik: float | None = None) -> Path:
-    """Sessiz sahne klibi: kamera hareketi + renk + (varsa) altyazı ve bölüm bandı.
-    karar_gir / karar_cik: siyahtan açılma / siyaha kararma (bölüm geçişleri)."""
+                gecikme: float = 0.0, karar_gir: float = 0.0, karar_cik: float | None = None,
+                metin: str = "") -> Path:
+    """Sessiz sahne klibi: kamera hareketi (2.5D derinlikli ya da klasik) + renk + altyazı + bölüm bandı +
+    (metinde sayı varsa) canlı bilgi grafiği. karar_gir / karar_cik: siyahtan açılma / siyaha kararma."""
     g, y, fps = boyut(ayar)
-    kare = max(1, math.ceil(saniye * fps))
-    z, x, yy = hareket_ifadesi(hareket, kare, fps, guc)
-    zincir = [f"scale={2 * g}:{2 * y}:force_original_aspect_ratio=increase", f"crop={2 * g}:{2 * y}",
-              f"zoompan=z='{z}':x='{x}':y='{yy}':d={kare}:s={g}x{y}:fps={fps}",
-              "eq=contrast=1.05:saturation=1.12", "vignette=PI/5"]
+    paralaks = paralaks_acik(ayar)
+    son_islem = ["eq=contrast=1.05:saturation=1.12", "vignette=PI/5"]
     if karar_gir:
-        zincir.append(f"fade=t=in:st=0:d={karar_gir:.2f}")
+        son_islem.append(f"fade=t=in:st=0:d={karar_gir:.2f}")
     if karar_cik is not None:
-        zincir.append(f"fade=t=out:st={max(0.0, karar_cik - 0.3):.2f}:d=0.3")
-    zincir += _altyazi_suzgecleri(ayar, kelimeler or [], gecikme, saniye, cikti.parent, cikti.stem)
-    girdiler = ["-i", str(resim)]
+        son_islem.append(f"fade=t=out:st={max(0.0, karar_cik - 0.3):.2f}:d=0.3")
+    son_islem += _altyazi_suzgecleri(ayar, kelimeler or [], gecikme, saniye, cikti.parent, cikti.stem)
+    if paralaks:
+        zincir = son_islem
+    else:
+        kare = max(1, math.ceil(saniye * fps))
+        z, x, yy = hareket_ifadesi(hareket, kare, fps, guc)
+        zincir = [f"scale={2 * g}:{2 * y}:force_original_aspect_ratio=increase", f"crop={2 * g}:{2 * y}",
+                  f"zoompan=z='{z}':x='{x}':y='{yy}':d={kare}:s={g}x{y}:fps={fps}"] + son_islem
+    ek, suz, akan, no = [], [f"[0:v]{','.join(zincir)}[v0]"], "v0", 1
     if bant:
         g0 = gecikme + 0.25
         kenar = max(12, g // 40)
-        girdiler += ["-loop", "1", "-framerate", str(fps), "-t", f"{saniye:.3f}", "-i", str(bant)]
-        grafik = (f"[0:v]{','.join(zincir)}[v];"
-                  f"[1:v]format=rgba,fade=t=out:st={g0 + 3.4:.2f}:d=0.4:alpha=1[b];"
-                  f"[v][b]overlay=x='if(lt(t-{g0:.2f},0.45),-w+(w+{kenar})*sin(PI/2*max(0,t-{g0:.2f})/0.45),{kenar})':"
-                  f"y=H*0.07:enable='between(t,{g0:.2f},{g0 + 3.8:.2f})',format=yuv420p[o]")
-    else:
-        grafik = f"[0:v]{','.join(zincir)},format=yuv420p[o]"
-    _ffmpeg(*girdiler, "-filter_complex", grafik, "-map", "[o]", "-t", f"{saniye:.3f}", "-r", str(fps), "-an",
-            *_kodlama(ayar, ara=True), str(cikti))
+        ek += ["-loop", "1", "-framerate", str(fps), "-t", f"{saniye:.3f}", "-i", str(bant)]
+        suz += [f"[{no}:v]format=rgba,fade=t=out:st={g0 + 3.4:.2f}:d=0.4:alpha=1[b]",
+                f"[{akan}][b]overlay=x='if(lt(t-{g0:.2f},0.45),-w+(w+{kenar})*sin(PI/2*max(0,t-{g0:.2f})/0.45),"
+                f"{kenar})':y=H*0.07:enable='between(t,{g0:.2f},{g0 + 3.8:.2f})'[v1]"]
+        akan, no = "v1", no + 1
+    bg = bilgi_grafigi(ayar, metin, kelimeler or [], cikti.parent, cikti.stem, gecikme=gecikme) if metin else None
+    if bg and bg[1] < saniye - 1.0:
+        ek += ["-framerate", str(fps), "-i", str(bg[0] / "%04d.png")]
+        suz += [f"[{no}:v]format=rgba,setpts=PTS+{bg[1]:.3f}/TB[gf]",
+                f"[{akan}][gf]overlay=x=W-w-W*0.05:y=(H-h)*0.38:eof_action=pass[v2]"]
+        akan, no = "v2", no + 1
+    suz.append(f"[{akan}]format=yuv420p[o]")
+    cikis = ["-map", "[o]", "-t", f"{saniye:.3f}", "-r", str(fps), "-an", *_kodlama(ayar, ara=True)]
+    if paralaks:
+        try:
+            return derinlik.klip(resim, cikti, g, y, saniye, fps, hareket, guc, cikis, ek, ";".join(suz))
+        except Exception as e:  # sorun olursa bu çalıştırmada klasik yönteme dön
+            log.warning("2.5D sahne üretilemedi (%s); klasik hareketle devam.", str(e)[:200])
+            derinlik._KAPALI = True
+            return sahne_klibi(ayar, resim, saniye, cikti, hareket, guc, kelimeler, bant, gecikme, karar_gir,
+                               karar_cik, metin)
+    _ffmpeg("-i", str(resim), *ek, "-filter_complex", ";".join(suz), *cikis, str(cikti))
     return cikti
 
 
@@ -286,7 +323,7 @@ def uzun_video(ayar: Ayarlar, kod: str, icerik: dict, sesler: list[dict], gorsel
         bant = gorsel.bolum_bandi(s["bolum"], klasor / f"bant_{len(sahneler):03d}.png", g, y, renk) \
             if s.get("bolum") and v.get("altyazi_yak") else None
         sahneler.append({**p, "resim": Path(gor["dosya"]), "ses": ses["ses"], "kelimeler": ses["kelimeler"],
-                         "bant": bant, "bolum_adi": s.get("bolum")})
+                         "bant": bant, "bolum_adi": s.get("bolum"), "metin": s.get("metin", "")})
     if float(v["outro_saniye"]) > 0:
         site = ayar.nis(icerik["plan"]["nis"]).get("alan_adi") or ""
         kart = gorsel.shorts_karesi(Path(gorseller[-1]["dosya"]), f"Abone ol • {site}".strip(" •"),
@@ -317,7 +354,7 @@ def uzun_video(ayar: Ayarlar, kod: str, icerik: dict, sesler: list[dict], gorsel
             klip = sahne_klibi(ayar, s["resim"], uzunluk, klasor / f"{i:03d}.mp4", s["hareket"], s["guc"],
                                s.get("kelimeler"), s.get("bant"), gecikme,
                                karar_gir=0.3 if ilk and s["bolum"] else 0.0,
-                               karar_cik=s["sure"] + gecikme if sonraki_bolum else None)
+                               karar_cik=s["sure"] + gecikme if sonraki_bolum else None, metin=s.get("metin", ""))
             if s.get("kapanis") and logo_yolu(ayar):
                 klip = _kapanis_logosu(ayar, klip, uzunluk)
             klipler.append((klip, s["sure"]))
@@ -409,7 +446,7 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
 
     # 1) Sıkı anlatım: her parçanın baş/son sessizliği kırpılır; kelimeler küresel zamana taşınır
     metinler = [p["metin"] for p in (sh.get("parcalar") or shorts_parcala(sh.get("metin", ""), ""))]
-    kelimeler, kesitler, bitisler, t = [], [], set(), 0.0
+    kelimeler, kesitler, bitisler, parca_kelimeleri, t = [], [], set(), [], 0.0
     girdiler, suz = [], []
     for k, ses in enumerate(sesler):
         kel = ses["kelimeler"] or [(0.0, ses["sure"], "")]
@@ -420,6 +457,7 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
         if len(asil) == len(yeni):  # seslendirme noktalamayı atar: virgülleri asıl metinden al
             bitisler |= {len(kelimeler) + i for i, w in enumerate(asil) if w[-1:] in ",;:"}
         kelimeler += yeni
+        parca_kelimeleri.append(yeni)
         if kelimeler:
             bitisler.add(len(kelimeler) - 1)  # cümle sonu
         kesitler.append((t, uzunluk))
@@ -463,6 +501,19 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
                     + (",fade=t=in:st=0:d=0.12:color=white" if flas else "") + ",format=yuv420p")
             _ffmpeg("-stream_loop", "-1", "-ss", f"{baslangic:.2f}", "-i", str(c["resim"]), "-vf", vf_v,
                     "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an", *_kodlama(ayar, ara=True), str(klipler[-1]))
+        elif paralaks_acik(ayar):  # fotoğraf → 2.5D derinlikli hareket (yerel model)
+            try:
+                derinlik.klip(Path(c["resim"]), klipler[-1], g, y, c["sure"], fps, "yaklas" if c["yakin"] else "vurus",
+                              2.0 if c["yakin"] else 1.0,
+                              ["-map", "[o]", "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an", *_kodlama(ayar, ara=True)],
+                              [], "[0:v]eq=contrast=1.08:saturation=1.25:brightness=-0.03,vignette=PI/5"
+                              + (",fade=t=in:st=0:d=0.12:color=white" if flas else "") + ",format=yuv420p[o]",
+                              kesme=None)
+            except Exception as e:
+                log.warning("2.5D çekim üretilemedi (%s); klasik hareket.", str(e)[:160])
+                derinlik._KAPALI = True
+                _ffmpeg("-i", str(c["resim"]), "-vf", vf, "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an",
+                        *_kodlama(ayar, ara=True), str(klipler[-1]))
         else:
             _ffmpeg("-i", str(c["resim"]), "-vf", vf, "-t", f"{c['sure']:.3f}", "-r", str(fps), "-an",
                     *_kodlama(ayar, ara=True), str(klipler[-1]))
@@ -498,7 +549,8 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
         (gorsel.kanca_kutusu(kanca, klasor / "k0.png", g, y, 0.85), 0.06),
         (gorsel.kanca_kutusu(kanca, klasor / "k1.png", g, y, 1.06), 0.06),
         (gorsel.kanca_kutusu(kanca, klasor / "k2.png", g, y), toplam)])
-    takip = gorsel.abone_rozeti(klasor / "takip.png", g, y, "TAKİP ET ▶", 1.5)
+    # Son 2,4 sn: izleyiciyi uzun videoya/kanala çağır (YouTube: Shorts → uzun video dönüşümü)
+    takip = gorsel.abone_rozeti(klasor / "takip.png", g, y, sh.get("cagri") or "TAMAMI KANALDA ▶", 1.5)
     son = max(0.0, toplam - 2.4)
 
     girdiler = ["-i", str(taban), "-f", "concat", "-safe", "0", "-i", str(altyazi),
@@ -508,14 +560,27 @@ def shorts_video(ayar: Ayarlar, kod: str, sira: int, sh: dict, sesler: list[dict
            "[0:v][alt]overlay=0:0:eof_action=pass[v1]", "[v1][ust]overlay=0:0:eof_action=pass[v2]",
            f"[3:v]format=rgba,fade=t=in:st={son:.2f}:d=0.25:alpha=1[tk]",
            f"[v2][tk]overlay=x=(W-w)/2:y='H*0.73+30*max(0,1-(t-{son:.2f})/0.25)':enable='gte(t,{son:.2f})'[v3]"]
-    ek, katman, akan = _katmanlar(ayar, 4, "v3", 0.0, toplam, toplam, klasor, None, dikey=True)
+    # Bilgi grafikleri: cümlede sayı varsa (en fazla 3), sayı söylenirken ortada canlanır
+    grafikler = []
+    for k, metin in enumerate(metinler[:len(parca_kelimeleri)]):
+        bg = bilgi_grafigi(ayar, metin, parca_kelimeleri[k], klasor, f"p{k}", dikey=True)
+        if bg and len(grafikler) < 3 and bg[1] < toplam - 1.5:
+            grafikler.append(bg)
+    akan = "v3"
+    for n_g, (gk, gan, _kenar) in enumerate(grafikler):
+        girdiler += ["-framerate", str(fps), "-i", str(gk / "%04d.png")]
+        suz += [f"[{4 + n_g}:v]format=rgba,setpts=PTS+{gan:.3f}/TB[g{n_g}]",
+                f"[{akan}][g{n_g}]overlay=x=(W-w)/2:y=H*0.2:eof_action=pass[gv{n_g}]"]
+        akan = f"gv{n_g}"
+    ek, katman, akan = _katmanlar(ayar, 4 + len(grafikler), akan, 0.0, toplam, toplam, klasor, None, dikey=True)
     video = klasor / "goruntu.mp4"
     _ffmpeg(*girdiler, *ek, "-filter_complex", ";".join(suz + katman + [f"[{akan}]format=yuv420p[son]"]),
             "-map", "[son]", "-t", f"{toplam:.3f}", "-r", str(fps), "-an", *_kodlama(ayar), str(video))
 
     cikti = CIKTI / kod / f"shorts_{sira}.mp4"
-    ses_karistir(ayar, video, anlatim, cikti, f"{kod}-s{sira}", [0.02] + kesmeler[1::2], ritim=True, muzik_ek_db=5)
-    for gecici in [*klasor.glob("*.png"), *klasor.glob("c*.mp4"), taban, video]:
+    ses_karistir(ayar, video, anlatim, cikti, f"{kod}-s{sira}", sorted([0.02] + kesmeler[1::2] + [g[1] for g in grafikler]),
+                 ritim=True, muzik_ek_db=5)
+    for gecici in [*klasor.glob("*.png"), *klasor.glob("grafik_*/*.png"), *klasor.glob("c*.mp4"), taban, video]:
         gecici.unlink(missing_ok=True)
     log.info("Shorts hazır: %s (%.1f sn, %d kesme)", cikti, toplam, len(kesmeler))
     return cikti

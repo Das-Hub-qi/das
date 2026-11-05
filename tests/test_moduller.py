@@ -559,3 +559,35 @@ def test_shorts_parcalama_altyazi_gruplari_ve_video_secimi():
                 {"file_type": "video/mp4", "width": 1920, "height": 1080, "link": "c"}]
     assert m06_materyal._video_dosyasi(dosyalar, True)["link"] == "a"            # dikey ve gereksiz büyük değil
     assert m06_materyal._video_dosyasi(dosyalar, False)["link"] == "c"
+
+
+def test_bilgi_grafigi_sayi_bulma():
+    from otonom import grafik
+    assert grafik.sayi_bul("Farelerde bu boşluk yüzde altmış kadar büyüdü.")["deger"] == 60
+    b = grafik.sayi_bul("Beyinde yaklaşık 86 milyar nöron var.")
+    assert b["deger"] == 86e9 and b["etiket"] == "NÖRON"
+    assert grafik.sayi_bul("Uykusuzluk riski 3 kat artırıyor.")["birim"] == "KAT"
+    assert grafik.sayi_bul("Penisilin 1928 yılında bulundu.")["tur"] == "yil"
+    assert grafik.sayi_bul("Bir gün bir adam geldi.") is None      # "bir" sayı değil
+    assert grafik.bicimle(1500, "sayi") == "1.500"
+
+
+def test_derinlik_kamera_plani_saf():
+    from otonom import derinlik
+    plan = derinlik.cekim_plani(21.0, "yaklas", 7.0)
+    assert len(plan) == 3 and plan[0][2] == "yaklas" and abs(sum(c[1] for c in plan) - 21.0) < 1e-6
+    assert derinlik.cekim_plani(8.0, "saga", 7.0) == [(0.0, 8.0, "saga", 0.0, (0.5, 0.5))]
+    k0, k1 = derinlik.kamera("yaklas", 0, 5), derinlik.kamera("yaklas", 5, 5)
+    assert k0["z"] == 1.0 and k1["z"] > 1.09
+    assert derinlik.kamera("vurus", 0, 2)["z"] > derinlik.kamera("vurus", 0.5, 2)["z"]  # ani yakınlaşma söner
+
+
+def test_baslangic_modu_tek_konuya_odaklanir():
+    from otonom import m03_icerik_plani
+    from otonom.ayarlar import yukle
+    a = yukle(deneme=True)
+    secim = m03_icerik_plani.baslangic_odagi(a, ["noro", "bilisim", "turizm"],
+                                             [["bilisim", 0.9, "2026-11-01"], ["noro", 0.2, "2026-11-01"]])
+    assert secim == ["bilisim"]
+    a.genel["youtube"]["baslangic_odak_video"] = 0
+    assert m03_icerik_plani.baslangic_odagi(a, ["noro", "bilisim"], []) == ["noro", "bilisim"]

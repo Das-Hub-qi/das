@@ -36,6 +36,8 @@ llm:
 
 # --- YouTube üretim hattı --------------------------------------------------
 youtube:
+  # Başlangıç modu: ilk 12 uzun videoda tek konuya odaklan (YouTube kanalın kitlesini çabuk öğrenir). 0 = kapalı
+  baslangic_odak_video: 12
   haftalik_uzun_video: 3     # her hafta üretilecek uzun video sayısı
   video_basina_shorts: 2     # her uzun videodan kesilecek Shorts sayısı (bedava ek içerik)
   hedef_kelime: 1100         # ~7-8 dakika (8 dk üstü ara reklam imkânı verir)
@@ -73,6 +75,8 @@ video:
   logo: "config/marka/logo.png"   # köşe filigranı + kapanışta logo (kanal ayarında "logo:" ile değişir)
   ilerleme_cubugu: true      # altta ince ilerleme çubuğu (izleyici sonuna kadar kalır)
   abone_rozeti: true         # videonun ~%30'unda kayan "ABONE OL" rozeti
+  paralaks: true             # 2.5D: fotoğraflar derinlik modeliyle (yerel, ücretsiz) üç boyutlu hareket eder
+  bilgi_grafikleri: true     # metinde sayı geçince ekranda canlı grafik (yüzde halkası, sayaç)
   stok_video: true           # Shorts'ta PEXELS_API_KEY varsa her cümlede gerçek stok VİDEO (yoksa fotoğraf)
 
 # --- Ücretsiz sınırlar (sistem bunlara göre kendini ayarlar) ---------------
