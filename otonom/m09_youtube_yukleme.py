@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .ayarlar import VERI, Ayarlar, csv_oku, gizli, json_oku, json_yaz, log
+from .ayarlar import VERI, Ayarlar, csv_oku, gizli, json_oku, json_yaz, log, uyari_ekle
 
 GUNLER = {"pazartesi": 0, "sali": 1, "carsamba": 2, "persembe": 3, "cuma": 4, "cumartesi": 5, "pazar": 6}
 KOTA = {"yukleme": 1600, "kucuk_resim": 50, "altyazi": 400}
@@ -63,8 +63,11 @@ def kota_harca(birim: int) -> None:
 
 # --------------------------------------------------------------- yükleme
 
+_KIMLIK_BOZUK = False  # bu çalıştırmada yetki reddedildiyse tekrar denenmez
+
+
 def kimlik_var() -> bool:
-    return all(gizli(k) for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"))
+    return not _KIMLIK_BOZUK and all(gizli(k) for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"))
 
 
 def servis(api: str = "youtube", surum: str = "v3"):
@@ -91,6 +94,30 @@ def yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: lis
         log.warning("Günlük YouTube kotası doldu; %s yarın yüklenecek.", video.name)
         return None
 
+    from googleapiclient.errors import HttpError
+
+    try:
+        return _yukle(ayar, video, baslik, aciklama, etiketler, yayin, kucuk_resim, altyazi)
+    except HttpError as e:
+        neden = str(e)
+        if "quotaExceeded" in neden or "uploadLimitExceeded" in neden:
+            kota_harca(GUNLUK_KOTA)  # bugün için dolu say; yarın kaldığı yerden devam
+            uyari_ekle("youtube", "YouTube günlük kotası/yükleme sınırı doldu; kalan videolar yarın yüklenecek.")
+            return None
+        raise
+    except Exception as e:
+        if "invalid_grant" in str(e) or "RefreshError" in type(e).__name__:
+            global _KIMLIK_BOZUK
+            _KIMLIK_BOZUK = True
+            uyari_ekle("youtube", "YouTube bağlantısı geçersiz (refresh token süresi dolmuş olabilir). "
+                                  "Videolar üretilmeye devam ediyor ve indirilebilir; araclar/youtube_token_al.py "
+                                  "ile yeni anahtar alın.")
+            return None
+        raise
+
+
+def _yukle(ayar: Ayarlar, video: Path, baslik: str, aciklama: str, etiketler: list[str],
+           yayin: datetime | None, kucuk_resim: Path | None, altyazi: Path | None) -> str:
     from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload
 

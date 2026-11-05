@@ -1,10 +1,15 @@
-"""MODÜL 5 — Seslendirme (Microsoft Edge TTS, ücretsiz) + otomatik altyazı zamanlaması."""
+"""MODÜL 5 — Seslendirme + otomatik altyazı zamanlaması.
+
+Ana ses: Microsoft Edge TTS (ücretsiz, çok doğal). Edge engellenir/sınırlanırsa iş durmaz:
+çevrimdışı, ücretsiz Piper Türkçe sesine geçilir (model ilk kullanımda bir kez indirilir).
+"""
 from __future__ import annotations
 
 import asyncio
 import os
 import ssl
 import subprocess
+import time
 from pathlib import Path
 
 from .ayarlar import Ayarlar, log
@@ -48,6 +53,48 @@ def _sessiz(yol: Path, saniye: float) -> None:
          "-t", f"{saniye:.2f}", "-q:a", "9", str(yol)], check=True)
 
 
+PIPER_SESI = "tr_TR-dfki-medium"
+PIPER_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/tr_TR/dfki/medium/"
+
+
+def _piper_modeli() -> Path:
+    import requests
+
+    from .yerel_llm import model_dizini
+
+    klasor = model_dizini() / "piper"
+    klasor.mkdir(parents=True, exist_ok=True)
+    for ek in (".onnx.json", ".onnx"):
+        dosya = klasor / (PIPER_SESI + ek)
+        if not dosya.exists():
+            r = requests.get(PIPER_URL + dosya.name, timeout=120, headers={"User-Agent": "otonom-icerik-sistemi/1.0"})
+            r.raise_for_status()
+            dosya.write_bytes(r.content)
+    return klasor / (PIPER_SESI + ".onnx")
+
+
+def _piper(metin: str, yol: Path) -> list[tuple[float, float, str]]:
+    """Çevrimdışı Türkçe ses. Kelime zamanları harf sayısına göre orantılı tahmin edilir."""
+    import wave
+
+    from piper import PiperVoice
+
+    wav = yol.with_suffix(".wav")
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(wav), "wb") as w:
+        PiperVoice.load(_piper_modeli()).synthesize_wav(metin, w)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-q:a", "4", str(yol)], check=True)
+    wav.unlink(missing_ok=True)
+    toplam, kelimeler = sure(yol), metin.split()
+    harf = sum(len(k) + 1 for k in kelimeler) or 1
+    sonuc, an = [], 0.0
+    for k in kelimeler:
+        d = toplam * (len(k) + 1) / harf
+        sonuc.append((an, an + d * 0.92, k))
+        an += d
+    return sonuc
+
+
 def seslendir(ayar: Ayarlar, metin: str, yol: Path) -> dict:
     """Döner: {"ses": yol, "sure": saniye, "kelimeler": [(baş, son, kelime), ...]}"""
     yol.parent.mkdir(parents=True, exist_ok=True)
@@ -57,13 +104,21 @@ def seslendir(ayar: Ayarlar, metin: str, yol: Path) -> dict:
         _sessiz(yol, s)
         adim = s / max(1, len(kelime))
         return {"ses": yol, "sure": s, "kelimeler": [(i * adim, (i + 1) * adim, k) for i, k in enumerate(kelime)]}
+    hata = None
     for deneme in range(3):
         try:
             kel = asyncio.run(_seslendir(metin, yol, ayar["ses"]["ses_adi"], ayar["ses"]["hiz"]))
-            return {"ses": yol, "sure": sure(yol), "kelimeler": kel}
-        except Exception as e:  # ağ kesintisi vb. — tekrar dene
-            log.warning("Seslendirme denemesi %d başarısız: %s", deneme + 1, e)
-    raise RuntimeError("Seslendirme 3 denemede başarısız.")
+            if kel and yol.stat().st_size > 1000:
+                return {"ses": yol, "sure": sure(yol), "kelimeler": kel}
+            hata = "boş ses döndü"
+        except Exception as e:  # ağ kesintisi, sınır, engel — tekrar dene
+            hata = e
+        log.warning("Edge seslendirme denemesi %d başarısız: %s", deneme + 1, hata)
+        time.sleep(2 * (deneme + 1))
+    from .ayarlar import uyari_ekle
+    uyari_ekle("seslendirme", f"Edge TTS kullanılamadı ({hata}); çevrimdışı Piper Türkçe sesiyle devam edildi.")
+    kel = _piper(metin, yol)
+    return {"ses": yol, "sure": sure(yol), "kelimeler": kel}
 
 
 # ------------------------------------------------------------------ altyazı

@@ -110,34 +110,35 @@ def _mesajdan_json(mesaj: Any, gorev: str) -> dict:
         raise LLMHatasi(f"[{gorev}] geçersiz JSON: {e}") from e
 
 
-def json_uret(
-    ayar: Ayarlar,
-    gorev: str,
-    sistem: str,
-    istem: str,
-    sema: dict,
-    sahte: Callable[[], dict],
-    efor: str | None = None,
-    max_tokens: int = 16000,
-) -> dict:
-    """Tek, anlık istek. Deneme modunda `sahte()` çıktısını döner."""
-    if ayar.deneme:
-        return sahte()
-    if saglayici(ayar) == "yerel":
-        from . import yerel_llm
+def yerel_kullanilabilir() -> bool:
+    import importlib.util
 
-        metin, neden, kullanim = yerel_llm.json_uret(ayar, sistem, istem, sema, max_tokens)
+    return importlib.util.find_spec("llama_cpp") is not None
+
+
+def _yerel_json(ayar: Ayarlar, gorev: str, sistem: str, istem: str, sema: dict, max_tokens: int) -> dict:
+    """Yerel model; çıktı yarım kalırsa metinleri kısaltma talimatıyla bir kez daha dener."""
+    from . import yerel_llm
+
+    for deneme in range(2):
+        ek = "" if deneme == 0 else "\n\nÖNEMLİ: Önceki deneme sığmadı. Tüm metinleri yaklaşık yarı uzunlukta yaz."
+        metin, neden, kullanim = yerel_llm.json_uret(ayar, sistem, istem + ek, sema, max_tokens)
         csv_ekle(MALIYET_DOSYASI, [{
             "gorev": gorev, "model": "yerel:" + ayar["llm"]["yerel_dosya"], "toplu": 0,
             "girdi_token": kullanim.get("prompt_tokens", 0), "cikti_token": kullanim.get("completion_tokens", 0),
             "onbellek_okunan": 0, "dolar": "0"}],
             ["gorev", "model", "toplu", "girdi_token", "cikti_token", "onbellek_okunan", "dolar"])
-        if neden == "length":
-            raise LLMHatasi(f"[{gorev}] yerel model çıktısı yarıda kesildi; llm.yerel_baglam değerini artırın.")
-        try:
-            return json.loads(metin)
-        except json.JSONDecodeError as e:
-            raise LLMHatasi(f"[{gorev}] yerel model geçersiz JSON üretti: {e}") from e
+        if neden != "length":
+            try:
+                return json.loads(metin)
+            except json.JSONDecodeError:
+                pass
+        log.warning("[%s] yerel model çıktısı yarım kaldı, kısaltılarak tekrar deneniyor.", gorev)
+    raise LLMHatasi(f"[{gorev}] yerel model iki denemede de tamamlayamadı; llm.yerel_baglam değerini artırın.")
+
+
+def _claude_json(ayar: Ayarlar, gorev: str, sistem: str, istem: str, sema: dict, efor: str | None,
+                 max_tokens: int) -> dict:
     import anthropic
 
     model = ayar["llm"]["model"]
@@ -153,6 +154,34 @@ def json_uret(
         raise LLMHatasi(f"[{gorev}] ağ hatası: {e}") from e
     _kaydet(gorev, model, mesaj.usage, toplu=False)
     return _mesajdan_json(mesaj, gorev)
+
+
+def json_uret(
+    ayar: Ayarlar,
+    gorev: str,
+    sistem: str,
+    istem: str,
+    sema: dict,
+    sahte: Callable[[], dict],
+    efor: str | None = None,
+    max_tokens: int = 16000,
+) -> dict:
+    """Tek, anlık istek. Deneme modunda `sahte()` çıktısını döner.
+
+    Yedek zinciri: Claude kullanılamazsa (kredi bitti, kota, ağ, geçersiz anahtar) iş durmaz,
+    ücretsiz yerel modelle devam edilir ve DURUM.md'de uyarı gösterilir.
+    """
+    if ayar.deneme:
+        return sahte()
+    if saglayici(ayar) == "claude":
+        try:
+            return _claude_json(ayar, gorev, sistem, istem, sema, efor, max_tokens)
+        except LLMHatasi as e:
+            if "reddetti" in str(e) or not yerel_kullanilabilir():
+                raise
+            from .ayarlar import uyari_ekle
+            uyari_ekle("yapay zekâ", f"Claude kullanılamadı ({e}); ücretsiz yerel modelle devam edildi.")
+    return _yerel_json(ayar, gorev, sistem, istem, sema, max_tokens)
 
 
 # ------------------------------------------------------------- toplu işlem

@@ -8,6 +8,7 @@ Komutlar:
   site       Mikro siteleri oluştur                   analiz    Modül 11
   teklifler  Cloudflare'dan teklifleri al             rapor     Aylık gelir raporu
   maliyet    Bugüne kadarki yapay zekâ harcaması
+  durum      DURUM.md panelini günceller (neyin kurulu, neyin eksik olduğunu gösterir)
   cloudflare Alan adlarını Pages sitelerine bağlar, KV deposunu kurar
   beta       Tek örnek video + Shorts + site üretir, YouTube'a yüklemez ('beta/' klasörü)
 --deneme: Dış servis çağırmadan, geçici klasörde sahte veriyle uçtan uca test.
@@ -24,7 +25,7 @@ import tempfile
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="otonom", description="Otonom gelir ve içerik sistemi")
     p.add_argument("komut", choices=["haftalik", "gunluk", "envanter", "nis", "plan", "uret", "alanadi", "site",
-                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare"])
+                                     "analiz", "teklifler", "rapor", "maliyet", "beta", "cloudflare", "durum"])
     p.add_argument("--deneme", action="store_true", help="dış servis yok, geçici klasör, sahte veri")
     a = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
@@ -41,8 +42,15 @@ def main(argv: list[str] | None = None) -> int:
                    mikro_site, orkestrator)
     from .ayarlar import ozet_yaz, yukle
 
+    import time
+
+    from . import butce, durum_paneli
+
+    baslangic = time.time()
     ayar = yukle(deneme=a.deneme)
     k = a.komut
+    if k in ("haftalik", "gunluk", "beta"):
+        ayar.mod = butce.uyarla(ayar)
     hatalar: list[str] = []
     if k == "haftalik":
         hatalar = orkestrator.haftalik(ayar)
@@ -76,6 +84,10 @@ def main(argv: list[str] | None = None) -> int:
         hatalar = orkestrator.beta(ayar)
     elif k == "maliyet":
         print(f"Toplam yapay zekâ maliyeti: {llm.toplam_maliyet():.4f} $")
+    elif k == "durum":
+        pass  # panel aşağıda her komutta zaten yazılıyor
+    butce.kaydet(ayar, k, time.time() - baslangic)
+    durum_paneli.yaz(ayar, k, hatalar)
     return 1 if hatalar else 0
 
 

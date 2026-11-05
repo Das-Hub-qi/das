@@ -7,6 +7,9 @@ kendi kendini iyileştiren otomasyon sistemi.
 - **Laboratuvar:** her hafta performansı ölçer, kazanan nişlere daha çok video ayırır, viral videoların devamını planlar
 - **Alan adları:** her alan adına ücretsiz site (Cloudflare Pages), satış/kiralama teklif formu, hazır satış metinleri
 
+> 📊 **Anlık durum, eksik kurulum adımları ve son videolar → [DURUM.md](DURUM.md)**
+> (her çalıştırmada kendiliğinden güncellenir; telefondan GitHub uygulamasıyla da okunur)
+
 ---
 
 ## 💰 Maliyet: neredeyse sıfır
@@ -42,6 +45,25 @@ Sistem **hiçbir ücretli hesap olmadan** çalışır. Tek gider alan adlarını
 | A/B testi (elle) | Zayıf videoda **alternatif başlık otomatik denenir**, 7 gün sonra kazanan kalır | İzlenmeyen video kurtarılır |
 | Ücretli yapay zekâ | **Ücretsiz yerel model** (Gemma 4), anahtar varsa otomatik Claude | Gerçekten 0 ₺ |
 | Domain parking | Ücretsiz **site + teklif formu**; teklif gelince yanıt taslağı hazırlanır | Park gelirinden fazlası, sıfır maliyet |
+
+## 🛡️ Sınıra takılınca ne olur? — Sistem durmaz
+
+| Sınır / sorun | Sistem ne yapar? |
+|---|---|
+| Claude kredisi biter, kota veya ağ hatası | Ücretsiz yerel modelle devam eder |
+| Yapay zekâ toplu işi 26 saatte bitmez | Senaryoları anlık üretir |
+| Yerel modelin çıktısı yarım kalır | Metni kısaltarak bir kez daha dener |
+| Edge seslendirme engellenir | Çevrimdışı **Piper** Türkçe sesine geçer |
+| Pexels/Pixabay sınırı veya anahtar yok | Openverse (anahtarsız) → o da olmazsa yazı kartı |
+| YouTube günlük kotası / yükleme sınırı | Kalan videoları ertesi gün kaldığı yerden yükler |
+| YouTube bağlantısı bozulur | Üretime devam eder, videoları indirilebilir bırakır, DURUM.md'de uyarır |
+| GitHub ücretsiz dakikası %85'e yaklaşır | Haftalık üretimi otomatik azaltır |
+| GitHub dakikası dolmak üzere (%93) | Ay sonuna kadar yalnızca analiz, teklif ve site işleri |
+| Cloudflare günlük yazma sınırı | Tıklama sayımı atlanır, linkler çalışmaya devam eder |
+| Ayar dosyasında yazım hatası | Satır numarasıyla Türkçe hata; eksik ayarlar varsayılanla tamamlanır |
+| Herhangi bir adım hata verir | Diğer adımlar sürer, iş biter, GitHub size e-posta atar, DURUM.md'de görünür |
+
+Her yedeğe geçiş `veri/uyarilar.json` dosyasına ve DURUM.md'nin "Son uyarılar" bölümüne yazılır.
 
 ---
 
@@ -127,6 +149,7 @@ Bir adım hata verirse GitHub size **ücretsiz e-posta** gönderir.
 | Salı/Perşembe/Cumartesi 18:00 | Uzun videolar yayına girer (`gizlilik: "zamanla"` iken) |
 
 ## ✅ Haftalık 15 dakikalık kontrol (insan denetimi)
+0. **DURUM.md**'ye bakın: eksik bir adım veya uyarı varsa orada yazar.
 1. YouTube Studio'da yeni videoları izleyin (hızlıca), sorun yoksa **Yayınla** / zamanlamayı onaylayın.
 2. Bitiş ekranı ekleyin: Studio > video > **Bitiş ekranı > Videodan içe aktar** (tek tık).
 3. `veri/raporlar/` içindeki son laboratuvar raporuna bakın; "yeniden düzenlenecekler" listesindeki
@@ -153,11 +176,13 @@ Kasım 2026'da işlemcide çalışabilen güncel küçük modeller bu sistemin g
 
 | Model | Dosya | Hız | Türkçe kalitesi |
 |---|---|---|---|
-| **Gemma 4 E2B** (seçilen) | 3,1 GB | 6,8 token/sn | Akıcı ve doğru; en hızlı |
+| **Gemma 4 E2B** (seçilen) | 3,1 GB | 6,8 token/sn (tam senaryo: 7,5 dk) | Akıcı ve doğru; en hızlı |
 | Gemma 4 E4B | 5,0 GB | 4,5 token/sn | En akıcı ama yavaş; ücretsiz sunucunun 7 GB belleğini zorlar |
 | Qwen3.5 4B | 2,7 GB | 4,6 token/sn | Belirgin dil bilgisi hataları |
 
-Ücretsiz GitHub sunucusu (2 çekirdek) yaklaşık yarı hızdadır: haftalık 3 senaryo ~1 saat sürer,
+Küçük modeller ara sıra hatalı bilgi yazabilir (testte "pomodoro 18 dakika" dedi; doğrusu 25):
+haftalık kontrolde senaryoya göz atın. Site adresi, emoji gibi seslendirmeyi bozan şeyler kodla
+otomatik temizlenir. Ücretsiz GitHub sunucusu (2 çekirdek) yaklaşık yarı hızdadır: haftalık 3 senaryo ~1 saat sürer,
 aylık ücretsiz 2.000 dakikanın içinde kalır. Modeli değiştirmek için `config/ayarlar.yaml` > `llm.yerel_*`.
 Daha kaliteli metin isterseniz `ANTHROPIC_API_KEY` ekleyin (ayda birkaç kuruş).
 

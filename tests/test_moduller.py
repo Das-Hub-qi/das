@@ -3,6 +3,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from otonom import (m02_nis_analizi, m03_icerik_plani, m04_senaryo, m05_seslendirme, m08_thumbnail_metadata,
                     m09_youtube_yukleme, m11_analiz)
 from otonom.ayarlar import kisa_ad
@@ -150,3 +152,52 @@ def test_ab_testi_deneme_modunda_dokunmaz():
     from otonom.ayarlar import yukle
 
     assert m11_analiz.ab_testi(yukle(deneme=True), [], date.today()) == []
+
+
+def test_butce_sinira_yaklasinca_uretimi_azaltir(monkeypatch):
+    from otonom import butce
+    from otonom.ayarlar import csv_ekle, yukle
+
+    ayar = yukle()
+    ayar.simdi = ayar.simdi.replace(day=10)
+    monkeypatch.delenv("REPO_OZEL", raising=False)
+    butce.DOSYA.unlink(missing_ok=True)
+    assert butce.uyarla(ayar) == "normal"
+    ay = ayar.simdi.strftime("%Y-%m")
+    csv_ekle(butce.DOSYA, [{"tarih": f"{ay}-05T09:00:00", "komut": "haftalik", "dakika": 700}],
+             ["tarih", "komut", "dakika"])  # 10 günde 700 dk -> ay sonu ~2100 > 2000*0.85
+    once = ayar["youtube"]["haftalik_uzun_video"]
+    assert butce.uyarla(ayar) == "azaltilmis"
+    assert ayar["youtube"]["haftalik_uzun_video"] == max(1, once - 1)
+    csv_ekle(butce.DOSYA, [{"tarih": f"{ay}-09T09:00:00", "komut": "haftalik", "dakika": 1300}],
+             ["tarih", "komut", "dakika"])
+    assert butce.uyarla(ayar) == "hafif"
+    monkeypatch.setenv("REPO_OZEL", "false")  # herkese açık depo: sınır yok
+    assert butce.uyarla(ayar) == "normal"
+    butce.DOSYA.unlink(missing_ok=True)
+
+
+def test_ayar_hatasi_anlasilir_mesaj(tmp_path, monkeypatch):
+    from otonom import ayarlar
+
+    (tmp_path / "ayarlar.yaml").write_text("llm:\n\tsaglayici: yerel\n", encoding="utf-8")  # TAB hatası
+    (tmp_path / "varliklar.yaml").write_text("nisler: []\n", encoding="utf-8")
+    monkeypatch.setattr(ayarlar, "CONFIG", tmp_path)
+    with pytest.raises(ayarlar.AyarHatasi) as h:
+        ayarlar.yukle()
+    assert "satır" in str(h.value)
+    # Eksik ayarlar varsayılanlarla tamamlanır
+    (tmp_path / "ayarlar.yaml").write_text("youtube:\n  haftalik_uzun_video: 2\n", encoding="utf-8")
+    a = ayarlar.yukle()
+    assert a["youtube"]["haftalik_uzun_video"] == 2 and a["youtube"]["hedef_kelime"] == 1100
+    (tmp_path / "ayarlar.yaml").write_text("llm:\n  saglayici: bedava\n", encoding="utf-8")
+    with pytest.raises(ayarlar.AyarHatasi):
+        ayarlar.yukle()
+
+
+def test_durum_paneli_eksikleri_gosterir():
+    from otonom import durum_paneli
+    from otonom.ayarlar import yukle
+
+    metin = durum_paneli.olustur(yukle(deneme=True), "gunluk", ["Örnek hata"])
+    assert "Kurulum kontrol listesi" in metin and "YouTube yükleme" in metin and "Örnek hata" in metin

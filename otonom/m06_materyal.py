@@ -22,14 +22,19 @@ ONBELLEK = CIKTI / "_onbellek"
 BASLIK = {"User-Agent": "otonom-icerik-sistemi/1.0"}
 
 
+def _turkce_mi(sorgu: str) -> bool:
+    """Model arama ifadesini Türkçe yazdıysa kaynaklara Türkçe dil ayarıyla sorulur."""
+    return any(c in "çğıöşüÇĞİÖŞÜ" for c in sorgu)
+
+
 def _pexels(sorgu: str, dikey: bool) -> list[dict]:
     anahtar = gizli("PEXELS_API_KEY")
     if not anahtar:
         return []
     try:
         r = requests.get("https://api.pexels.com/v1/search", headers={"Authorization": anahtar}, timeout=15,
-                         params={"query": sorgu, "per_page": 15,
-                                 "orientation": "portrait" if dikey else "landscape"})
+                         params={"query": sorgu, "per_page": 15, "orientation": "portrait" if dikey else "landscape",
+                                 **({"locale": "tr-TR"} if _turkce_mi(sorgu) else {})})
         r.raise_for_status()
         return [{"url": p["src"]["portrait" if dikey else "large2x"], "kaynak": "Pexels",
                  "yazar": p.get("photographer", ""), "sayfa": p.get("url", "")} for p in r.json().get("photos", [])]
@@ -45,7 +50,7 @@ def _pixabay(sorgu: str, dikey: bool) -> list[dict]:
     try:
         r = requests.get("https://pixabay.com/api/", timeout=15, params={
             "key": anahtar, "q": sorgu[:100], "image_type": "photo", "safesearch": "true", "per_page": 20,
-            "orientation": "vertical" if dikey else "horizontal"})
+            "orientation": "vertical" if dikey else "horizontal", "lang": "tr" if _turkce_mi(sorgu) else "en"})
         r.raise_for_status()
         return [{"url": h["largeImageURL"], "kaynak": "Pixabay", "yazar": h.get("user", ""),
                  "sayfa": h.get("pageURL", "")} for h in r.json().get("hits", [])]

@@ -55,6 +55,10 @@ video:
   intro_saniye: 0
   outro_saniye: 5
 
+# --- Ücretsiz sınırlar (sistem bunlara göre kendini ayarlar) ---------------
+butce:
+  github_dakika_limiti: 2000  # özel depoda aylık ücretsiz dakika; herkese açık depoda sınır yok (otomatik algılanır)
+
 # --- Laboratuvar (test & optimizasyon) -------------------------------------
 laboratuvar:
   kesif_orani: 0.2           # üretimin %20'si yeni nişleri denemeye ayrılır

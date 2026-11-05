@@ -10,13 +10,14 @@ ve GitHub size ücretsiz e-posta bildirimi gönderir.
 from __future__ import annotations
 
 import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
 from . import (gorsel, llm, m01_envanter, m02_nis_analizi, m03_icerik_plani, m04_senaryo, m05_seslendirme,
                m06_materyal, m07_montaj, m08_thumbnail_metadata, m09_youtube_yukleme, m10_alan_adi,
                m11_analiz, m12_gelir, mikro_site)
-from .ayarlar import CIKTI, VERI, Ayarlar, csv_ekle, json_oku, json_yaz, log, ozet_yaz
+from .ayarlar import CIKTI, VERI, Ayarlar, csv_ekle, json_oku, json_yaz, log, ozet_yaz, uyari_ekle
 
 DURUM = VERI / "durum.json"
 YAYIN_ALANLARI = ["tarih", "kod", "nis", "tur", "sira", "youtube_id", "baslik", "yayin_zamani", "sure_sn", "kelime"]
@@ -38,22 +39,37 @@ def senaryo_asamasi(ayar: Ayarlar, plan: list[dict]) -> None:
     durum = _durum()
     if not plan:
         return
+    anlik = list(plan)
     if llm.toplu_mu(ayar):
         if durum.get("bekleyen_toplu"):
             log.warning("Önceki toplu iş hâlâ bekliyor; yeni plan ona eklenmedi.")
             return
-        istekler = [m04_senaryo.istek_olustur(ayar, v) for v in plan]
-        durum["bekleyen_toplu"] = {"id": llm.toplu_gonder(ayar, istekler), "plan": plan}
-    else:
-        for v in plan:
-            ist = m04_senaryo.istek_olustur(ayar, v)
-            icerik = llm.json_uret(ayar, v["kod"], ist["sistem"], ist["istem"], ist["sema"],
-                                   lambda v=v: m04_senaryo.sahte_icerik(v, int(ayar["youtube"]["video_basina_shorts"])),
-                                   efor=ist["efor"], max_tokens=ist["max_tokens"])
-            _kuyruga_ekle(durum, ayar, v["kod"], m04_senaryo.kaydet(ayar, v, icerik))
+        try:
+            istekler = [m04_senaryo.istek_olustur(ayar, v) for v in plan]
+            durum["bekleyen_toplu"] = {"id": llm.toplu_gonder(ayar, istekler), "plan": plan,
+                                       "gonderim": ayar.simdi.isoformat(timespec="seconds")}
+            anlik = []
+        except Exception as e:  # kredi bitti, anahtar geçersiz vb. -> anlık (gerekirse yerel) üretim
+            uyari_ekle("yapay zekâ", f"Toplu işlem gönderilemedi ({e}); senaryolar anlık üretiliyor.")
+    _anlik_uret(ayar, durum, anlik)
     json_yaz(DURUM, durum)
     from . import yerel_llm
     yerel_llm.bosalt()  # montajdan önce belleği boşalt
+
+
+def _anlik_uret(ayar: Ayarlar, durum: dict, plan: list[dict]) -> None:
+    """Senaryoları tek tek üretir; biri başarısız olursa diğerleri devam eder."""
+    for v in plan:
+        ist = m04_senaryo.istek_olustur(ayar, v)
+        try:
+            icerik = llm.json_uret(ayar, v["kod"], ist["sistem"], ist["istem"], ist["sema"],
+                                   lambda v=v: m04_senaryo.sahte_icerik(v, int(ayar["youtube"]["video_basina_shorts"])),
+                                   efor=ist["efor"], max_tokens=ist["max_tokens"])
+        except llm.LLMHatasi as e:
+            uyari_ekle("senaryo", f"{v['kod']} üretilemedi, atlandı: {e}")
+            continue
+        _kuyruga_ekle(durum, ayar, v["kod"], m04_senaryo.kaydet(ayar, v, icerik))
+        json_yaz(DURUM, durum)  # her senaryodan sonra kaydet: iş yarıda kesilse de kaybolmaz
 
 
 def toplu_kontrol(ayar: Ayarlar) -> None:
@@ -61,22 +77,26 @@ def toplu_kontrol(ayar: Ayarlar) -> None:
     bekleyen = durum.get("bekleyen_toplu")
     if not bekleyen or ayar.deneme:
         return
-    sonuc = llm.toplu_sonuc(ayar, bekleyen["id"])
+    try:
+        sonuc = llm.toplu_sonuc(ayar, bekleyen["id"])
+    except Exception as e:
+        sonuc = None
+        uyari_ekle("yapay zekâ", f"Toplu iş sonucu alınamadı: {e}")
     if sonuc is None:
+        gonderim = datetime.fromisoformat(bekleyen.get("gonderim") or ayar.simdi.isoformat())
+        if ayar.simdi - gonderim > timedelta(hours=26):  # takılı kaldı -> vazgeç, anlık üret
+            uyari_ekle("yapay zekâ", "Toplu iş 26 saatte bitmedi; senaryolar anlık üretiliyor.")
+            durum["bekleyen_toplu"] = None
+            _anlik_uret(ayar, durum, bekleyen["plan"])
+            json_yaz(DURUM, durum)
         return
     for v in bekleyen["plan"]:
         c = sonuc.get(v["kod"])
         if isinstance(c, dict):
             _kuyruga_ekle(durum, ayar, v["kod"], m04_senaryo.kaydet(ayar, v, c))
-        else:  # nadir: tekil istekle bir kez daha dene
+        else:  # nadir: tekil istekle (gerekirse yerel modelle) bir kez daha dene
             log.warning("Toplu sonuç başarısız (%s): %s — tekil deneniyor", v["kod"], c)
-            ist = m04_senaryo.istek_olustur(ayar, v)
-            try:
-                icerik = llm.json_uret(ayar, v["kod"], ist["sistem"], ist["istem"], ist["sema"],
-                                       lambda: {}, efor=ist["efor"], max_tokens=ist["max_tokens"])
-                _kuyruga_ekle(durum, ayar, v["kod"], m04_senaryo.kaydet(ayar, v, icerik))
-            except llm.LLMHatasi as e:
-                log.error("Senaryo üretilemedi, atlandı: %s", e)
+            _anlik_uret(ayar, durum, [v])
     durum["bekleyen_toplu"] = None
     json_yaz(DURUM, durum)
 
@@ -200,6 +220,12 @@ def haftalik(ayar: Ayarlar) -> list[str]:
     def planla() -> None:
         plan.extend(m03_icerik_plani.calistir(ayar))
 
+    if ayar.mod == "hafif":  # ücretsiz dakika bitmek üzere: üretim yok, gelir/analiz işleri sürer
+        return _adimlar([
+            ("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True)),
+            ("Mikro siteler", lambda: mikro_site.olustur(ayar)),
+            ("Modül 12 — Gelir raporu", lambda: ozet_yaz(m12_gelir.aylik_rapor(ayar))),
+        ])
     adimlar = [
         ("Modül 1 — Envanter", lambda: m01_envanter.calistir(ayar)),
         ("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(ayar, tam_rapor=True)),
@@ -234,9 +260,11 @@ def beta(ayar: Ayarlar) -> list[str]:
 
 
 def gunluk(ayar: Ayarlar) -> list[str]:
-    return _adimlar([
+    uretim = [] if ayar.mod == "hafif" else [
         ("Toplu senaryo sonuçları", lambda: toplu_kontrol(ayar)),
         ("Modül 5-9 — Üretim ve yükleme", lambda: uretim_asamasi(ayar)),
+    ]
+    return _adimlar(uretim + [
         ("Modül 11 — Günlük metrik / viral kontrol", lambda: m11_analiz.calistir(ayar, tam_rapor=False)),
         ("Modül 12 — Teklifler", lambda: m12_gelir.teklifleri_isle(ayar)),
         ("Modül 12 — Link tıklamaları", lambda: m12_gelir.tiklamalari_topla(ayar)),

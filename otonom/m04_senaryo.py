@@ -5,6 +5,8 @@ Böylece aynı maliyetle 3 farklı gelir kanalını besleyen içerik çıkar.
 """
 from __future__ import annotations
 
+import re
+
 from .ayarlar import CIKTI, VERI, Ayarlar, json_oku, json_yaz, log
 
 SENARYO_SEMASI = {
@@ -85,6 +87,7 @@ def istek_olustur(ayar: Ayarlar, v: dict) -> dict:
     nis = ayar.nis(v["nis"])
     site = nis.get("alan_adi") or ""
     hedef = int(ayar["youtube"]["hedef_kelime"])
+    sahne = max(4, round(hedef / 75))
     istem = f"""Konu: {v['konu']}
 Ana anahtar kelime: {v['anahtar_kelime']}
 Özgün bakış açısı: {v['aci']}
@@ -93,7 +96,10 @@ Kanal nişi: {nis['ad']}
 Başlık fikirleri: {' | '.join(v['basliklar'])}
 {"İzleyiciyi şu siteye davet et: " + site if site else ""}
 
-Uzun video toplam {hedef - 100}-{hedef + 100} kelime olsun.
+Uzun video toplam {hedef - 100}-{hedef + 100} kelime olsun: tam {sahne} sahne yaz,
+her sahne 4-6 cümle (yaklaşık 75 kelime). Kısa kesme; her bölümde örnek ve açıklama ver.
+gorsel_arama alanlarını İNGİLİZCE 2-4 kelime yaz (ör. "student studying desk").
+Site adresini seslendirme metninde yazma; "açıklamadaki link" de.
 {ayar['youtube']['video_basina_shorts']} adet Shorts metni yaz."""
     return {"id": v["kod"], "sistem": SISTEM, "istem": istem, "sema": SENARYO_SEMASI,
             "efor": ayar["llm"]["senaryo_efor"], "max_tokens": 16000}
@@ -117,9 +123,23 @@ def sahte_icerik(v: dict, shorts: int = 2) -> dict:
     }
 
 
+ALAN_ADI = re.compile(r"\b[\w-]+(?:\.(?:com|net|org|tr|io|ai))+(?:'[a-zçğıöşü]+)?\b", re.IGNORECASE)
+EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F]")
+
+
+def _seslendirilebilir(metin: str) -> str:
+    """Yapay sesin tökezleyeceği şeyleri temizler: site adresi, emoji, fazla boşluk."""
+    metin = ALAN_ADI.sub("açıklamadaki link", metin)
+    return re.sub(r"\s+", " ", EMOJI.sub("", metin)).strip()
+
+
 def _temizle(icerik: dict) -> dict:
-    """Platform sınırlarını kodla garanti et (model hatasına güvenme)."""
-    icerik["baslik"] = icerik["baslik"].strip()[:100]
+    """Platform sınırlarını kodla garanti et (model hatasına güvenme; küçük yerel modeller için şart)."""
+    icerik["baslik"] = EMOJI.sub("", icerik["baslik"]).strip()[:100]
+    icerik["thumbnail_yazi"] = EMOJI.sub("", icerik["thumbnail_yazi"]).strip()
+    for s in icerik["sahneler"] + icerik["shorts"]:
+        s["metin"] = _seslendirilebilir(s["metin"])
+        s["gorsel_arama"] = " ".join(s["gorsel_arama"].split()[:4])
     etiketler, toplam = [], 0
     for e in icerik["etiketler"]:
         e = e.replace("#", "").strip()

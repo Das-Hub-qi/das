@@ -57,6 +57,7 @@ class Ayarlar:
     varliklar: dict[str, Any]
     deneme: bool = False      # True = dış servis çağrısı yok, sahte veriyle uçtan uca test
     yukleme: bool = True      # False = videolar üretilir ama YouTube'a yüklenmez (beta)
+    mod: str = "normal"       # bütçe modu: normal | azaltilmis | hafif (butce.py belirler)
     simdi: datetime = field(default_factory=lambda: datetime.now(ZoneInfo("Europe/Istanbul")))
 
     def __getitem__(self, anahtar: str) -> Any:
@@ -77,9 +78,68 @@ class Ayarlar:
         return [a for a in self.varliklar.get("alan_adlari", []) if a and a.get("aktif", True)]
 
 
+# Ayar dosyasında eksik/silinmiş bir satır sistemi durdurmasın diye her ayarın varsayılanı burada.
+VARSAYILAN: dict[str, Any] = {
+    "saat_dilimi": "Europe/Istanbul",
+    "llm": {"saglayici": "otomatik", "yerel_model": "unsloth/gemma-4-E2B-it-GGUF",
+            "yerel_dosya": "gemma-4-E2B-it-Q4_K_M.gguf", "yerel_baglam": 10240, "yerel_sicaklik": 0.7,
+            "model": "claude-haiku-5-5", "toplu_islem": True, "senaryo_efor": "medium", "kisa_is_efor": "low"},
+    "youtube": {"haftalik_uzun_video": 3, "video_basina_shorts": 2, "hedef_kelime": 1100, "kategori_id": "27",
+                "gizlilik": "private", "yayin_gunleri": ["sali", "persembe", "cumartesi"], "yayin_saati": "18:00",
+                "altyazi_yukle": True, "sentetik_medya_beyani": False},
+    "ses": {"ses_adi": "tr-TR-AhmetNeural", "hiz": "+5%", "muzik_seviyesi_db": -20},
+    "video": {"genislik": 1920, "yukseklik": 1080, "fps": 24, "ken_burns": True, "crf": 23,
+              "intro_saniye": 0, "outro_saniye": 5},
+    "butce": {"github_dakika_limiti": 2000},
+    "laboratuvar": {"kesif_orani": 0.2, "viral_esik": 10000, "min_veri_gunu": 7},
+    "cloudflare": {"web_analytics_token": "", "adsense_yayinci_id": ""},
+    "teklifler": {"otomatik_yanit": False},
+}
+SECENEKLER = {
+    ("llm", "saglayici"): {"otomatik", "yerel", "claude"},
+    ("youtube", "gizlilik"): {"private", "zamanla"},
+}
+
+
+class AyarHatasi(SystemExit):
+    pass
+
+
+def _birlestir(taban: dict, ust: dict) -> dict:
+    sonuc = dict(taban)
+    for k, v in (ust or {}).items():
+        sonuc[k] = _birlestir(taban[k], v) if isinstance(v, dict) and isinstance(taban.get(k), dict) else v
+    return sonuc
+
+
+def _yaml_oku(dosya: Path) -> dict:
+    try:
+        veri = yaml.safe_load(dosya.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as e:
+        isaret = getattr(e, "problem_mark", None)
+        yer = f"{isaret.line + 1}. satır" if isaret else "bilinmeyen satır"
+        raise AyarHatasi(
+            f"\n❌ {dosya.name} dosyasında yazım hatası ({yer}).\n"
+            "İpuçları: girintiler boşlukla yapılmalı (TAB değil), ':' işaretinden sonra bir boşluk olmalı,\n"
+            "içinde ':' veya '#' geçen metinler tırnak içine alınmalı. Ayrıntı: " + str(e).splitlines()[0]) from None
+    if not isinstance(veri, dict):
+        raise AyarHatasi(f"\n❌ {dosya.name} beklenen biçimde değil (anahtar: değer satırları olmalı).")
+    return veri
+
+
 def yukle(deneme: bool = False) -> Ayarlar:
-    genel = yaml.safe_load((CONFIG / "ayarlar.yaml").read_text(encoding="utf-8")) or {}
-    varliklar = yaml.safe_load((CONFIG / "varliklar.yaml").read_text(encoding="utf-8")) or {}
+    genel = _birlestir(VARSAYILAN, _yaml_oku(CONFIG / "ayarlar.yaml"))
+    varliklar = _yaml_oku(CONFIG / "varliklar.yaml")
+    for (bolum, anahtar), gecerli in SECENEKLER.items():
+        if genel[bolum][anahtar] not in gecerli:
+            raise AyarHatasi(f"\n❌ ayarlar.yaml > {bolum}.{anahtar} = '{genel[bolum][anahtar]}' geçersiz. "
+                             f"Seçenekler: {', '.join(sorted(gecerli))}")
+    for n in varliklar.get("nisler") or []:
+        if not isinstance(n, dict) or not n.get("kod") or not n.get("tohum_kelimeler"):
+            raise AyarHatasi("\n❌ varliklar.yaml > nisler: her nişin 'kod' ve 'tohum_kelimeler' alanı olmalı.")
+        n.setdefault("ad", n["kod"])
+        n.setdefault("hedef_kitle", "Genel izleyici")
+        n.setdefault("alan_adi", "")
     for k in (VERI, CIKTI):
         k.mkdir(parents=True, exist_ok=True)
     return Ayarlar(genel=genel, varliklar=varliklar, deneme=deneme)
@@ -123,6 +183,19 @@ def csv_ekle(yol: Path, satirlar: list[dict[str, Any]], alanlar: list[str]) -> N
         if yeni:
             w.writeheader()
         w.writerows(satirlar)
+
+
+def uyari_ekle(kategori: str, metin: str) -> None:
+    """Sınıra takılma/yedeğe geçme gibi olayları kaydeder; DURUM.md panelinde gösterilir."""
+    log.warning("[%s] %s", kategori, metin)
+    yol = VERI / "uyarilar.json"
+    liste = json_oku(yol, [])
+    zaman = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m-%d %H:%M")
+    if liste and liste[-1].get("metin") == metin:   # aynı uyarıyı üst üste yazma
+        liste[-1]["zaman"] = zaman
+    else:
+        liste.append({"zaman": zaman, "kategori": kategori, "metin": metin})
+    json_yaz(yol, liste[-40:])
 
 
 def ozet_yaz(metin: str) -> None:
