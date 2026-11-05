@@ -381,11 +381,11 @@ def _kapanis_logosu(ayar: Ayarlar, klip: Path, saniye: float) -> Path:
     """Kapanış kartına yukarıdan süzülen logo."""
     g, y, fps = boyut(ayar)
     cikti = klip.with_name(klip.stem + "_logo.mp4")
-    boy = int(y * 0.3)
+    boy = int(y * 0.22)  # başlık (üst %14) ile ana yazı (orta) arasına sığar
     _ffmpeg("-i", str(klip), "-loop", "1", "-framerate", str(fps), "-t", f"{saniye:.3f}", "-i", str(logo_yolu(ayar)),
             "-filter_complex",
             f"[1:v]scale=-1:{boy},format=rgba,fade=t=in:st=0.2:d=0.6:alpha=1[l];"
-            f"[0:v][l]overlay=x=(W-w)/2:y='H*0.03+{boy // 4}*exp(-max(0,t-0.2)*4)'[o]",
+            f"[0:v][l]overlay=x=(W-w)/2:y='H*0.205+{boy // 4}*exp(-max(0,t-0.2)*4)'[o]",
             "-map", "[o]", "-t", f"{saniye:.3f}", "-an", *_kodlama(ayar, ara=True), str(cikti))
     return cikti
 
