@@ -217,11 +217,13 @@ Kasım 2026'da işlemcide çalışabilen güncel küçük modeller bu sistemin g
 
 | Model | Dosya | Hız | Türkçe kalitesi |
 |---|---|---|---|
-| **Gemma 4 E2B** (seçilen) | 3,1 GB | 6,8 token/sn (tam senaryo: 7,5 dk) | Akıcı ve doğru; en hızlı |
+| **Gemma 4 E2B** (seçilen) | 3,1 GB · çalışırken 4,9 GB bellek | 6,8 token/sn | Akıcı; en hızlı; ücretsiz sunucuya sığar |
 | Gemma 4 E4B | 5,0 GB | 4,5 token/sn | En akıcı ama yavaş; çalışırken **8,8 GB bellek** kullandı → ücretsiz özel sunucuya (7 GB) sığmaz |
 | Qwen3.5 4B | 2,7 GB | 4,6 token/sn | Belirgin dil bilgisi hataları |
 
-Küçük modeller ara sıra hatalı bilgi yazabilir (testte "pomodoro 18 dakika" dedi; doğrusu 25):
+Küçük modeller uzun metni kısa keser (testte 700 kelime istendi, 177 yazdı). Bu yüzden sistem
+kısa kalan senaryoda her sahneyi tek tek **genişletme turundan** geçirir (testte 69 → 233 kelime, sahne başına
+~26 sn). Küçük modeller ara sıra hatalı bilgi yazabilir (testte "pomodoro 18 dakika" dedi; doğrusu 25):
 haftalık kontrolde senaryoya göz atın. Site adresi, emoji gibi seslendirmeyi bozan şeyler kodla
 otomatik temizlenir. Ücretsiz GitHub sunucusu (2 çekirdek) yaklaşık yarı hızdadır: haftalık 3 senaryo ~1 saat sürer,
 aylık ücretsiz 2.000 dakikanın içinde kalır. Modeli değiştirmek için `config/ayarlar.yaml` > `llm.yerel_*`.

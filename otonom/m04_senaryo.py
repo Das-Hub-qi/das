@@ -159,8 +159,43 @@ def _temizle(icerik: dict) -> dict:
     return icerik
 
 
+GENISLET_SEMASI = {"type": "object", "properties": {"metin": {"type": "string"}},
+                   "required": ["metin"], "additionalProperties": False}
+
+
+def uzunluk_tamamla(ayar: Ayarlar, v: dict, icerik: dict) -> dict:
+    """Küçük modeller uzun metni kısa keser. Hedefin %70'inden kısa kalan senaryoda, kısa sahneler
+    tek tek (tek paragraf olarak) genişletilir — küçük modeller tek paragrafta uzunluğu iyi tutturur."""
+    from . import llm
+
+    hedef = int((v.get("deney") or {}).get("hedef_kelime") or ayar["youtube"]["hedef_kelime"])
+    sahneler = icerik.get("sahneler") or []
+    toplam = sum(len(s["metin"].split()) for s in sahneler)
+    if ayar.deneme or not sahneler or toplam >= 0.7 * hedef:
+        return icerik
+    sahne_hedef = max(50, hedef // len(sahneler))
+    for i, s in enumerate(sahneler):
+        if len(s["metin"].split()) >= 0.7 * sahne_hedef:
+            continue
+        onceki = sahneler[i - 1]["metin"][-200:] if i else "(videonun açılışı)"
+        istem = (f"Video konusu: {v['konu']}\nBölüm: {s.get('bolum') or 'devam'}\nÖnceki sahnenin sonu: {onceki}\n"
+                 f"Genişletilecek sahne: {s['metin']}\n\nBu sahneyi aynı fikri koruyarak yaklaşık {sahne_hedef} "
+                 "kelimelik, 4-6 cümlelik akıcı bir seslendirme paragrafına genişlet. Somut bir örnek ekle. "
+                 "Emin olmadığın sayı, istatistik veya araştırma adı yazma. Sadece paragrafı döndür.")
+        try:
+            c = llm.json_uret(ayar, f"{v['kod']}-genislet-{i}", SISTEM, istem, GENISLET_SEMASI, lambda: {},
+                              max_tokens=min(1200, sahne_hedef * 4))
+            if len(c.get("metin", "").split()) > len(s["metin"].split()):
+                s["metin"] = c["metin"]
+        except llm.LLMHatasi as e:
+            log.warning("Sahne %d genişletilemedi: %s", i, e)
+    yeni = sum(len(s["metin"].split()) for s in sahneler)
+    log.info("Senaryo genişletildi: %d → %d kelime (hedef %d)", toplam, yeni, hedef)
+    return icerik
+
+
 def kaydet(ayar: Ayarlar, v: dict, icerik: dict) -> dict:
-    icerik = _temizle(icerik)
+    icerik = _temizle(uzunluk_tamamla(ayar, v, icerik))
     icerik["plan"] = v
     icerik["kelime"] = sum(len(s["metin"].split()) for s in icerik["sahneler"])
     json_yaz(VERI / "videolar" / v["kod"] / "icerik.json", icerik)
