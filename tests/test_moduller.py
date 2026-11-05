@@ -454,3 +454,21 @@ def test_buyume_ic_baglanti_ve_erken_aday(monkeypatch, tmp_path):
     adaylar = buyume.erken_adaylar(videolar)
     assert [v["youtube_id"] for v in adaylar] == ["V3"]
     assert buyume.erken_adaylar(videolar[:3]) == []
+
+
+def test_site_yazilarinda_video_semasi_ve_og_image():
+    from otonom import mikro_site
+    from otonom.__main__ import main
+    from otonom.ayarlar import KANALLAR_VERI, SITE, csv_oku, yukle
+
+    yayin_dosyasi = KANALLAR_VERI / "ana" / "yayinlananlar.csv"
+    if not csv_oku(yayin_dosyasi):
+        assert main(["haftalik", "--deneme"]) == 0
+    metin = yayin_dosyasi.read_text(encoding="utf-8").replace("DENEME-", "abcDEF", 1)
+    yayin_dosyasi.write_text(metin, encoding="utf-8")
+    kod = next(s for s in csv_oku(yayin_dosyasi) if s["youtube_id"].startswith("abcDEF"))["kod"]
+    mikro_site.olustur(yukle(deneme=True))
+    sayfalar = list(SITE.glob(f"*/public/yazi/{kod}/index.html"))
+    assert sayfalar
+    sayfa = sayfalar[0].read_text(encoding="utf-8")
+    assert '"@type": "VideoObject"' in sayfa and "i.ytimg.com/vi/abcDEF" in sayfa and 'og:image' in sayfa

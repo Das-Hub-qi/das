@@ -105,14 +105,15 @@ def _tum_nisler(ayar: Ayarlar) -> list[tuple[str, dict]]:
 
 def _makaleler(eslesen: set[tuple[str, str]]) -> list[dict]:
     """Bu siteye bağlı (kanal, niş) çiftlerinin tüm kanallardaki yazıları, en yeni önce."""
-    yt = {s["kod"]: s["youtube_id"] for d in sorted(KANALLAR_VERI.glob("*/yayinlananlar.csv")) for s in csv_oku(d)
+    yt = {s["kod"]: (s["youtube_id"], s.get("yayin_zamani") or s.get("tarih", "")) for d in sorted(KANALLAR_VERI.glob("*/yayinlananlar.csv")) for s in csv_oku(d)
           if s["tur"] == "uzun" and s.get("youtube_id") and not s["youtube_id"].startswith("DENEME")}
     liste = []
     for dosya in KANALLAR_VERI.glob("*/videolar/*/icerik.json"):
         ic = json_oku(dosya)
         kanal = ic.get("plan", {}).get("kanal") or dosya.parent.parent.parent.name if ic else ""
         if ic and (kanal, ic["plan"]["nis"]) in eslesen:
-            liste.append({**ic["makale"], "kod": ic["plan"]["kod"], "youtube_id": yt.get(ic["plan"]["kod"], ""),
+            liste.append({**ic["makale"], "kod": ic["plan"]["kod"], "youtube_id": yt.get(ic["plan"]["kod"], ("", ""))[0],
+                          "yayin": yt.get(ic["plan"]["kod"], ("", ""))[1],
                           "_sira": dosya.stat().st_mtime})
     return sorted(liste, key=lambda m: -m["_sira"])
 
@@ -152,9 +153,22 @@ def olustur(ayar: Ayarlar) -> list[str]:
             ld = json.dumps({"@context": "https://schema.org", "@type": "Article", "headline": m["baslik"],
                              "description": m["meta_aciklama"], "inLanguage": "tr"},
                             ensure_ascii=False).replace("</", "<\\/")  # güvenlik: metin script etiketini kapatamasın
+            ekstra = f'<script type="application/ld+json">{ld}</script>'
+            if m["youtube_id"]:  # Google video sonuçları için VideoObject + paylaşım görseli
+                kucuk = f"https://i.ytimg.com/vi/{m['youtube_id']}/hqdefault.jpg"
+                vld = json.dumps({"@context": "https://schema.org", "@type": "VideoObject", "name": m["baslik"],
+                                  "description": m["meta_aciklama"], "thumbnailUrl": [kucuk],
+                                  "uploadDate": m.get("yayin") or "", "inLanguage": "tr",
+                                  "embedUrl": f"https://www.youtube.com/embed/{m['youtube_id']}",
+                                  "url": f"https://www.youtube.com/watch?v={m['youtube_id']}"},
+                                 ensure_ascii=False).replace("</", "<\\/")
+                ekstra += (f'<script type="application/ld+json">{vld}</script>'
+                           f'<meta property="og:image" content="{html.escape(kucuk)}">'
+                           '<meta property="og:type" content="video.other">'
+                           '<meta name="twitter:card" content="summary_large_image">')
             sayfa = _sayfa(ayar, alan, m["baslik"], m["meta_aciklama"],
                            f"<article><h1>{html.escape(m['baslik'])}</h1>{video}{govde_html}</article>",
-                           f"/yazi/{m['kod']}/", f'<script type="application/ld+json">{ld}</script>')
+                           f"/yazi/{m['kod']}/", ekstra)
             (pub / "yazi" / m["kod"]).mkdir(parents=True)
             (pub / "yazi" / m["kod"] / "index.html").write_text(sayfa, encoding="utf-8")
             adresler.append(f"/yazi/{m['kod']}/")
