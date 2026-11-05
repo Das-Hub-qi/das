@@ -9,6 +9,7 @@ ve GitHub size ücretsiz e-posta bildirimi gönderir.
 """
 from __future__ import annotations
 
+import time
 import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -192,12 +193,32 @@ def _shorts_uret(ayar: Ayarlar, kod: str, icerik: dict, j: int) -> str | None:
     return vid
 
 
+def hazirlik_asamasi(ayar: Ayarlar) -> int:
+    """Bekleyen içeriklerin parçalarını acele etmeden hazırlar (adaylar, puanlama, seslendirme). Süre sınırlı."""
+    if not ayar["hazirlik"]["acik"]:
+        return 0
+    from . import hazirlik
+    bitis = time.time() + float(ayar["hazirlik"]["dakika_siniri"]) * 60
+    kodlar = list(dict.fromkeys(i["kod"] for i in _durum()["kuyruk"] if i["durum"] == "bekliyor"))
+    hazir = 0
+    for kod in kodlar:
+        kalan = bitis - time.time()
+        icerik = m04_senaryo.yukle(kod)
+        if kalan <= 0 or not icerik:
+            continue
+        hazir += bool(hazirlik.hazirla(ayar, kod, icerik, kalan).get("hazir"))
+    return hazir
+
+
 def uretim_asamasi(ayar: Ayarlar) -> int:
+    from . import hazirlik
     durum = _durum()
     tamam = 0
     for is_ in sorted(durum["kuyruk"], key=lambda x: (x["tur"] != "uzun", x["kod"], x["sira"])):
         if is_["durum"] != "bekliyor":
             continue
+        if not hazirlik.uretime_hazir(ayar, is_["kod"]):
+            continue  # parçalar hâlâ hazırlanıyor: sonraki çalıştırmada
         icerik = m04_senaryo.yukle(is_["kod"])
         if not icerik:
             is_["durum"] = "icerik_yok"
@@ -275,6 +296,7 @@ def kanal_haftalik(ayar: Ayarlar) -> list[str]:
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
     ]
     if not llm.toplu_mu(ayar):  # sonuç hemen hazırsa üretim aynı çalıştırmada yapılır
+        adimlar.append(("Hazırlık — görsel adayları, puanlama, seslendirme", lambda: hazirlik_asamasi(ayar)))
         adimlar.append(("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar)))
     return _adimlar(adimlar)
 
@@ -282,6 +304,7 @@ def kanal_haftalik(ayar: Ayarlar) -> list[str]:
 def kanal_gunluk(ayar: Ayarlar) -> list[str]:
     uretim = [] if ayar.mod == "hafif" else [
         ("Toplu senaryo sonuçları", lambda: toplu_kontrol(ayar)),
+        ("Hazırlık — görsel adayları, puanlama, seslendirme", lambda: hazirlik_asamasi(ayar)),
         ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar)),
     ]
     analiz: dict = {}
@@ -298,16 +321,27 @@ def kanal_beta(ayar: Ayarlar) -> list[str]:
     ayar.genel["youtube"]["haftalik_uzun_video"] = 1
     ayar.genel["llm"]["toplu_islem"] = False   # sonucu hemen görmek için anlık istek
     ayar.yukleme = False
+    ayar.genel["hazirlik"]["en_fazla_saat"] = 0   # beta: hazırlık bir tur, sonra eldeki en iyilerle üret
     plan: list[dict] = []
     return _adimlar([
         ("Modül 2 — Niş ve kaynak analizi", lambda: m02_nis_analizi.calistir(ayar)),
         ("Modül 3 — Plan (1 video)", lambda: plan.extend(m03_icerik_plani.calistir(ayar))),
         ("Modül 4 — Senaryo", lambda: senaryo_asamasi(ayar, plan)),
+        ("Hazırlık — görsel adayları, puanlama, seslendirme", lambda: hazirlik_asamasi(ayar)),
         ("Modül 5-8 — Video ve Shorts", lambda: uretim_asamasi(ayar)),
     ])
 
 
+def kanal_hazirlik(ayar: Ayarlar) -> list[str]:
+    """Gün içinde birkaç kez: parçaları hazırla, hazır olanı üret ve yükle."""
+    if ayar.mod == "hafif":
+        return []
+    return _adimlar([("Hazırlık — görsel adayları, puanlama, seslendirme", lambda: hazirlik_asamasi(ayar)),
+                     ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(ayar))])
+
+
 KANAL_ISLERI = {
+    "hazirlik": kanal_hazirlik,
     "haftalik": kanal_haftalik,
     "gunluk": kanal_gunluk,
     "beta": kanal_beta,
@@ -315,6 +349,7 @@ KANAL_ISLERI = {
     "plan": lambda a: _adimlar([("Modül 3-4 — Plan ve senaryo",
                                  lambda: senaryo_asamasi(a, m03_icerik_plani.calistir(a)))]),
     "uret": lambda a: _adimlar([("Toplu senaryo sonuçları", lambda: toplu_kontrol(a)),
+                                ("Elle üretim: hazırlık beklenmez", lambda: a.genel["hazirlik"].update(en_fazla_saat=0)),
                                 ("Modül 5-9 — Video, Shorts ve yükleme", lambda: uretim_asamasi(a))]),
     "buyume": lambda a: _adimlar([("Büyüme araçları", lambda: buyume.calistir(a))]),
     "analiz": lambda a: _adimlar([("Modül 11 — Laboratuvar analizi", lambda: m11_analiz.calistir(a))]),

@@ -56,12 +56,14 @@ UYUMLU = {
 
 def saglayici_zinciri(ayar: Ayarlar) -> list[str]:
     """Denenecek yapay zekâ sağlayıcıları, sırayla. Biri kullanılamazsa (kredi, kota, ağ) sıradaki denenir.
+    ucretsiz  : (VARSAYILAN) önce YEREL model, gerekirse ücretsiz kotalı servisler; Claude/paralı hizmet ASLA.
     otomatik  : Claude (anahtar varsa) -> Cloudflare Workers AI -> NVIDIA -> OpenRouter -> PC (Jormungand)
                 -> yerel model. Anahtarı olmayan atlanır; hepsi ücretsiz kotalıdır (Claude hariç).
     claude    : Claude -> diğerleri     cloudflare: Cloudflare -> diğerleri     yerel: yalnızca yerel"""
     secim = ayar["llm"].get("saglayici", "otomatik")
     ucretsiz = ["cloudflare", "nvidia", "openrouter", "pc", "yerel"]
-    sira = {"otomatik": ["claude", *ucretsiz], "claude": ["claude", *ucretsiz],
+    sira = {"ucretsiz": ["yerel", "cloudflare", "nvidia", "openrouter", "pc"],
+            "otomatik": ["claude", *ucretsiz], "claude": ["claude", *ucretsiz],
             "cloudflare": ucretsiz, "yerel": ["yerel"]}.get(secim, ["yerel"])
     if not ayar["llm"].get("cloudflare_metin_modeli"):
         sira = [x for x in sira if x != "cloudflare"]

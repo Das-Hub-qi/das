@@ -6,6 +6,7 @@ Ana ses: Microsoft Edge TTS (ücretsiz, çok doğal). Edge engellenir/sınırlan
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import ssl
 import subprocess
@@ -126,8 +127,24 @@ def _piper(metin: str, yol: Path, dil: str = "tr") -> list[tuple[float, float, s
 
 
 def seslendir(ayar: Ayarlar, metin: str, yol: Path, sira: int = 1, toplam: int = 3, ek_hiz: int = 0) -> dict:
-    """Döner: {"ses": yol, "sure": saniye, "kelimeler": [(baş, son, kelime), ...]}"""
+    """Döner: {"ses": yol, "sure": saniye, "kelimeler": [(baş, son, kelime), ...]}
+    Önbellekli: aynı metin aynı yola daha önce seslendirildiyse (hazırlık aşaması) tekrar üretilmez."""
     yol.parent.mkdir(parents=True, exist_ok=True)
+    yan = yol.with_suffix(".json")
+    if yol.exists() and yan.exists():
+        try:
+            k = json.loads(yan.read_text(encoding="utf-8"))
+            if k.get("metin") == metin and k.get("ek_hiz", 0) == ek_hiz:
+                return {"ses": yol, "sure": k["sure"], "kelimeler": [tuple(x) for x in k["kelimeler"]]}
+        except (ValueError, KeyError):
+            pass
+    sonuc = _seslendir_yeni(ayar, metin, yol, sira, toplam, ek_hiz)
+    yan.write_text(json.dumps({"metin": metin, "ek_hiz": ek_hiz, "sure": sonuc["sure"],
+                               "kelimeler": sonuc["kelimeler"]}, ensure_ascii=False), encoding="utf-8")
+    return sonuc
+
+
+def _seslendir_yeni(ayar: Ayarlar, metin: str, yol: Path, sira: int, toplam: int, ek_hiz: int) -> dict:
     if ayar.deneme:
         kelime = metin.split()
         s = max(1.5, len(kelime) / 2.6)

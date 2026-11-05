@@ -24,7 +24,7 @@ import sys
 import tempfile
 import time
 
-KANAL_KOMUTLARI = {"haftalik", "gunluk", "beta", "nis", "plan", "uret", "analiz", "muhendis", "buyume"}
+KANAL_KOMUTLARI = {"hazirlik", "haftalik", "gunluk", "beta", "nis", "plan", "uret", "analiz", "muhendis", "buyume"}
 GENEL_KOMUTLAR = {"envanter", "alanadi", "site", "teklifler", "rapor", "maliyet", "cloudflare", "durum",
                   "yeni_kanal", "kanallar", "arama", "yetki"}
 

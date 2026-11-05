@@ -10,13 +10,14 @@ on:
     - cron: "17 6 * * 1"   # Pazartesi 09:17 — HAFTALIK döngü (öğrenme, plan, senaryo, video, Shorts)
     - cron: "7 4 * * *"    # Her gün 07:07 — GÜNLÜK döngü (kalan yüklemeler, teklifler, siteler)
     - cron: "37 10 * * 1"  # Pazartesi 13:37 — (Claude toplu işi kullanılıyorsa) senaryoları alıp üretim
+    - cron: "29 1,13,19 * * *"  # Günde 3 kez (04:29, 16:29, 22:29) — HAZIRLIK: görsel adayları, puanlama, ses; hazır olanı üret
   workflow_dispatch:       # Actions sekmesinden elle çalıştırma
     inputs:
       komut:
         description: "Çalıştırılacak komut"
         type: choice
         default: gunluk
-        options: [gunluk, haftalik, beta, yeni_kanal, muhendis, buyume, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
+        options: [gunluk, haftalik, hazirlik, beta, yeni_kanal, muhendis, buyume, cloudflare, envanter, nis, plan, uret, alanadi, site, analiz, teklifler, rapor]
       aciklama:
         description: "Yalnızca yeni_kanal için: kanalı bir cümleyle anlat (konu, kitle, dil, biçim)"
         type: string
@@ -34,8 +35,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KANAL_KOMUTLARI: " haftalik gunluk beta nis plan uret analiz muhendis buyume "
-  YZ_KOMUTLARI: " haftalik beta plan muhendis gunluk uret buyume "
+  KANAL_KOMUTLARI: " hazirlik haftalik gunluk beta nis plan uret analiz muhendis buyume "
+  YZ_KOMUTLARI: " hazirlik haftalik beta plan muhendis gunluk uret buyume "
 
 jobs:
   # 1) Komutu ve çalışacak kanalları belirle (hafif, ~20 sn)
@@ -60,7 +61,9 @@ jobs:
           pip install -q pyyaml
           KOMUT="$GIRILEN_KOMUT"
           if [ -z "$KOMUT" ]; then
-            if [ "$ZAMANLAMA" = "17 6 * * 1" ]; then KOMUT=haftalik; else KOMUT=gunluk; fi
+            if [ "$ZAMANLAMA" = "17 6 * * 1" ]; then KOMUT=haftalik
+            elif [ "$ZAMANLAMA" = "29 1,13,19 * * *" ]; then KOMUT=hazirlik
+            else KOMUT=gunluk; fi
           fi
           echo "komut=$KOMUT" >> "$GITHUB_OUTPUT"
           if [[ "$KANAL_KOMUTLARI" == *" $KOMUT "* ]]; then

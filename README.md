@@ -61,6 +61,17 @@ Pazartesi 13:37 ─ (Claude toplu işi kullanılıyorsa) senaryoları alır ve �
 Her gün   07:07 ─ Kanallar: kalan yüklemeler, viral kontrol · Genel: teklifler, link tıklamaları, siteler
 ```
 
+**🧩 Hazırlık aşaması (videonun parçaları ayrı zamanlarda, acele etmeden):**
+- Senaryodan sonra video hemen birleştirilmez. Hazırlık günde 3 kez çalışır, her seferinde 25 dakika ilerler ve
+  kaldığı yerden devam eder.
+- Her görsel yuvası (sahne / Shorts cümlesi) için 3 aday üretilir: farklı kaynak, kadraj ve tohum.
+- Adaylar **yerel CLIP modeliyle** cümleye uygunluk ve netliğe göre puanlanır, en iyisi seçilir.
+  Örneğin "akan sıvı" sahnesinde limonata bardağı elenir.
+- Shorts metinleri kurala uymuyorsa (ilk cümle uzun, toplam kelime fazla) yerel yapay zekâ düzeltir.
+- Seslendirmeler önceden hazırlanıp saklanır. Her şey hazır olunca (en fazla 36 saat sonra) video birleştirilip yüklenir.
+- **Yapay zekâ sırası varsayılan olarak "ucretsiz":** Önce yerel model çalışır, gerekirse ücretsiz kotalı servisler devreye girer.
+  Claude ya da paralı bir hizmet kullanılmaz (`config/ayarlar.yaml` > `llm.saglayici`).
+
 **🎬 Video kalitesi (montaj v3, hepsi ücretsiz, yerel ve anahtarsız):**
 - **2.5D sinematik hareket:** Her fotoğraf yerel bir derinlik modeliyle (Depth-Anything-V2-Small, Apache-2.0, 27 MB)
   üç boyutlu canlanır; kamera hareket ettikçe yakındaki nesneler uzaktakilerden farklı kayar. Uzun sahneler sanal

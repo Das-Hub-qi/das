@@ -8,6 +8,7 @@ daha hızlıdır, GitHub Actions'ın ücretsiz dakikaları korunur.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from pathlib import Path
 
@@ -163,9 +164,15 @@ STOK_KAYNAKLARI = {"pexels": _pexels, "pixabay": _pixabay, "openverse": _openver
 
 
 def gorsel_bul(ayar: Ayarlar, sorgu: str, hedef: Path, kullanilan: set[str], nis: str,
-               dikey: bool = False, yedek_yazi: str = "") -> dict:
+               dikey: bool = False, yedek_yazi: str = "", hazir_kullan: bool = True) -> dict:
     """Videoda daha önce kullanılmamış bir görsel bulur ve `hedef`e yazar.
     Sıra kanal dosyasındaki 'gorsel_kaynaklari' ile değiştirilebilir (ör. tarih kanalı için yapay zekâ önce)."""
+    hazir = hedef.with_suffix(".hazir.json")
+    if hazir_kullan and hazir.exists() and hedef.exists():  # hazırlık aşamasında seçilmiş en iyi aday
+        try:
+            return {**json.loads(hazir.read_text(encoding="utf-8")), "dosya": str(hedef)}
+        except ValueError:
+            pass
     if not ayar.deneme:
         sira = ayar.kanal_bilgi.get("gorsel_kaynaklari") or (
             ["pexels", "pixabay", "openverse", "yapay_zeka"] if gizli("PEXELS_API_KEY") or gizli("PIXABAY_API_KEY")

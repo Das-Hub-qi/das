@@ -8,14 +8,14 @@ saat_dilimi: "Europe/Istanbul"
 
 # --- Yapay zekâ (metin üretimi) -------------------------------------------
 # saglayici:
-#   "otomatik" = ANTHROPIC_API_KEY eklediyseniz Claude (daha kaliteli), eklemediyseniz ücretsiz yerel model
-#   "yerel"    = her zaman ücretsiz yerel model (API anahtarı ve ücret yok, GitHub sunucusunda çalışır)
-#   "claude"   = her zaman Claude Haiku 5.5 (1M token girdi 0,10 $ / çıktı 0,50 $; ayda birkaç kuruş)
-#   "cloudflare" = Cloudflare Workers AI (Cloudflare hesabının ücretsiz günlük kotası; Llama 3.3 70B)
-# "otomatik" sırası: Claude (anahtar varsa) -> Cloudflare (hesap bağlıysa) -> yerel model.
-# Biri kullanılamazsa (kredi/kota/ağ) sıradakine kendiliğinden geçilir; iş asla durmaz.
+#   "ucretsiz" = (VARSAYILAN) önce YEREL model (GitHub sunucusunda, tamamen ücretsiz), gerekirse ücretsiz
+#                kotalı servisler (Cloudflare, NVIDIA, OpenRouter, evdeki PC). Claude/paralı hizmet ASLA kullanılmaz.
+#   "yerel"    = yalnızca yerel model
+#   "otomatik" = Claude (ANTHROPIC_API_KEY varsa, ücretli) -> ücretsizler -> yerel
+#   "claude"   = önce Claude Haiku (ücretli)
+# Biri kullanılamazsa (kota/ağ) sıradakine kendiliğinden geçilir; iş asla durmaz.
 llm:
-  saglayici: "otomatik"
+  saglayici: "ucretsiz"
   cloudflare_metin_modeli: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"   # boş = Cloudflare metin kullanılmaz
   # Ücretsiz kotalı ek sağlayıcılar (Hibrit AI ile aynı anahtarlar; anahtar yoksa atlanır):
   nvidia_modeli: "meta/llama-3.3-70b-instruct"                # NVIDIA_API_KEY (build.nvidia.com)
@@ -49,6 +49,15 @@ youtube:
   yayin_saati: "18:00"
   altyazi_yukle: true        # SRT altyazıyı YouTube'a yükler (izlenme süresini artırır)
   sentetik_medya_beyani: false  # gerçekçi yapay görüntü/insan kullanırsanız true yapın
+
+# --- Hazırlık: video birleştirilmeden önce parçalar ayrı zamanlarda, acele etmeden hazırlanır ---
+# Her görsel yuvası için birkaç aday üretilir, yerel modelle (uygunluk + netlik) puanlanır, en iyisi seçilir.
+# Günde birkaç kez çalışır; hazır olan içerik montaja geçer, en fazla "en_fazla_saat" beklenir.
+hazirlik:
+  acik: true
+  aday_sayisi: 3        # yuva başına aday (fazlası = daha iyi seçim, daha uzun hazırlık)
+  dakika_siniri: 25     # bir çalıştırmada hazırlığa ayrılan en fazla süre
+  en_fazla_saat: 36     # bu süre dolunca eldeki en iyi adaylarla üretilir
 
 ses:
   ses_adi: "tr-TR-AhmetNeural"   # alternatif: "tr-TR-EmelNeural"

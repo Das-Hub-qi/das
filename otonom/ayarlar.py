@@ -128,8 +128,9 @@ class Ayarlar:
 # Ayar dosyasında eksik/silinmiş bir satır sistemi durdurmasın diye her ayarın varsayılanı burada.
 VARSAYILAN: dict[str, Any] = {
     "saat_dilimi": "Europe/Istanbul",
+    "hazirlik": {"acik": True, "aday_sayisi": 3, "dakika_siniri": 25, "en_fazla_saat": 36},
     "llm": {"nvidia_modeli": "meta/llama-3.3-70b-instruct",
-            "openrouter_modeli": "meta-llama/llama-3.3-70b-instruct:free", "saglayici": "otomatik", "yerel_model": "unsloth/gemma-4-E2B-it-GGUF",
+            "openrouter_modeli": "meta-llama/llama-3.3-70b-instruct:free", "saglayici": "ucretsiz", "yerel_model": "unsloth/gemma-4-E2B-it-GGUF",
             "yerel_dosya": "gemma-4-E2B-it-Q4_K_M.gguf", "yerel_baglam": 10240, "yerel_sicaklik": 0.7,
             "model": "claude-haiku-5-5", "toplu_islem": True, "senaryo_efor": "medium", "kisa_is_efor": "low",
             "cloudflare_metin_modeli": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -155,7 +156,7 @@ VARSAYILAN: dict[str, Any] = {
 }
 OGRENILEN = KANAL_VERI / "ogrenilen_ayarlar.yaml"   # Öğrenme Mühendisi katmanı (kanal başına; silinirse sıfırlanır)
 SECENEKLER = {
-    ("llm", "saglayici"): {"otomatik", "yerel", "claude", "cloudflare"},
+    ("llm", "saglayici"): {"ucretsiz", "otomatik", "yerel", "claude", "cloudflare"},
     ("youtube", "gizlilik"): {"private", "zamanla"},
 }
 

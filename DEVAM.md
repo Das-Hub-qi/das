@@ -59,7 +59,13 @@
   (sayı bulucu + canlı yüzde/sayaç/yıl grafikleri), `m07.sahne_klibi` ve Shorts'a bağlandı (hata olursa zoompan'e döner).
   YouTube resmî kaynaklarından kurallar m04 SISTEM'e (paketleme, ilk 2 cümle, merak döngüsü); `m03.baslangic_odagi`
   (ilk 12 uzun videoda tek niş); anahtarsız görsel sırası yapay zekâ önce; Shorts sonu "TAMAMI KANALDA".
-- Testler: 39.
+- **Hazırlık aşaması** (`hazirlik.py`, `secici.py`): kuyruktaki içerik için senaryo denetimi (Shorts kuralları,
+  yerel LLM düzeltme), önbellekli seslendirme (m05 yan .json), yuva başına 3 görsel adayı → yerel CLIP
+  (Xenova/clip-vit-base-patch32 ONNX) + netlik puanı → en iyisi hedef yola + `.hazir.json` (m06.gorsel_bul önce
+  buna bakar). Süre sınırlı, kaldığı yerden devam; `uretime_hazir` (hazır ya da 36 saat). Yeni komut/cron `hazirlik`
+  (günde 3 kez). Test: 2 tur (150 sn'de kesildi, 2. turda bitti), ortalama seçilen puan 74.
+- **LLM varsayılanı "ucretsiz"**: yerel → Cloudflare → NVIDIA → OpenRouter → PC; Claude yalnızca açıkça seçilirse.
+- Testler: 40.
 
 ## Sıradaki işler
 1. **Kontrol Merkezi'ni güncelle** (Artifact, https://claude.ai/artifact/JmGazg5W8YwsfdmMX7WeLf; önce `action: read`):

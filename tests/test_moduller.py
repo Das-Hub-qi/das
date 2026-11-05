@@ -542,8 +542,11 @@ def test_ek_saglayicilar_zincirde_ve_json_ayiklama(monkeypatch):
     from otonom.ayarlar import yukle
     a = yukle(deneme=True)
     monkeypatch.setenv("NVIDIA_API_KEY", "x")
-    zincir = llm.saglayici_zinciri(a)
-    assert "nvidia" in zincir and "openrouter" not in zincir and zincir[-1] == "yerel"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    zincir = llm.saglayici_zinciri(a)   # varsayılan "ucretsiz": önce yerel, paralı hizmet asla
+    assert zincir[0] == "yerel" and "nvidia" in zincir and "openrouter" not in zincir and "claude" not in zincir
+    a.genel["llm"]["saglayici"] = "otomatik"
+    assert llm.saglayici_zinciri(a)[0] == "claude"
     assert llm._json_ayikla('```json\n{"a": 1}\n```') == {"a": 1}
     assert llm._json_ayikla('Tabii: {"b": [1, 2]} umarım işine yarar') == {"b": [1, 2]}
 
@@ -591,3 +594,18 @@ def test_baslangic_modu_tek_konuya_odaklanir():
     assert secim == ["bilisim"]
     a.genel["youtube"]["baslangic_odak_video"] = 0
     assert m03_icerik_plani.baslangic_odagi(a, ["noro", "bilisim"], []) == ["noro", "bilisim"]
+
+
+def test_hazirlik_shorts_kurallari_ve_ses_onbellegi(tmp_path):
+    from otonom import hazirlik, m05_seslendirme
+    from otonom.ayarlar import yukle
+    iyi = {"parcalar": [{"metin": "Beynin her gece yıkanıyor.", "gorsel_arama": "x"}] +
+                       [{"metin": "Bu cümle tam on kelimeden oluşan örnek bir bilgi cümlesi.", "gorsel_arama": "x"}] * 7}
+    assert hazirlik.shorts_sorunlari(iyi) == []
+    kotu = {"parcalar": [{"metin": " ".join(["kelime"] * 12), "gorsel_arama": "x"}]}
+    assert len(hazirlik.shorts_sorunlari(kotu)) >= 2
+    a = yukle(deneme=True)
+    s1 = m05_seslendirme.seslendir(a, "Merhaba dünya.", tmp_path / "a.mp3")
+    assert (tmp_path / "a.json").exists()
+    s2 = m05_seslendirme.seslendir(a, "Merhaba dünya.", tmp_path / "a.mp3")   # önbellekten
+    assert s2["sure"] == s1["sure"] and s2["kelimeler"] == [tuple(k) for k in s1["kelimeler"]]
